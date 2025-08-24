@@ -1,64 +1,40 @@
+
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { ADMIN_EMAILS } from "@/lib/config"; // ✅ Import admin emails
 
 export default function LoginPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check auth state on mount
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        console.log("User already logged in:", user);
-        router.push("/");
-      } else {
-        setLoading(false);
-      }
-    });
+  const handleRedirectAfterLogin = (user) => {
+    if (!user) return;
 
-    // Check redirect result
-    const checkRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log("Redirect login success:", result.user);
-          router.push("/");
-        }
-      } catch (err) {
-        console.error("Redirect login error:", err);
-      }
-    };
-
-    checkRedirectResult();
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const isMobile = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+    if (ADMIN_EMAILS.includes(user.email)) {
+      router.push("/admin"); // ✅ Admin page
+    } else {
+      router.push("/user");  // ✅ Normal user page
+    }
   };
 
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      
-      if (isMobile()) {
-        console.log("Using redirect for mobile");
+
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        // Mobile -> redirect
         await signInWithRedirect(auth, provider);
       } else {
-        console.log("Using popup for desktop");
-        await signInWithPopup(auth, provider);
+        // Desktop -> popup
+        const result = await signInWithPopup(auth, provider);
+        handleRedirectAfterLogin(result.user);
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -66,18 +42,26 @@ export default function LoginPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <div>Loading...</div>
-      </div>
-    );
-  }
+  // ✅ Redirect result (mobile) handle karna
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          console.log("Redirect login success:", result.user);
+          handleRedirectAfterLogin(result.user);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect login error:", err);
+      });
+  }, [router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
         <h1 className="text-xl font-bold mb-4">Login BrainFuel</h1>
+
+        {/* Google button */}
         <button
           onClick={handleGoogleLogin}
           className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
@@ -93,6 +77,152 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ===============================================================================
+  // ===============================================================================================
+  
+// "use client";
+// import { useEffect, useState } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signInWithRedirect,
+//   getRedirectResult,
+//   onAuthStateChanged,
+// } from "firebase/auth";
+// import { auth } from "@/lib/firebase";
+
+// import { ADMIN_EMAILS } from "@/lib/config";
+
+
+// export default function LoginPage() {
+//   const router = useRouter();
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+//     // Check auth state on mount
+//     const unsubscribe = onAuthStateChanged(auth, (user) => {
+//       // =================================
+//       // if (user) {
+//       //   console.log("User already logged in:", user);
+//       //   router.push("/");
+//       // } else {
+//       //   setLoading(false);
+//       // }
+
+//       if (user) {
+//         console.log("User already logged in:", user);
+
+//         if (ADMIN_EMAILS.includes(user.email)) {
+//           router.push("/admin");  // ✅ admin redirect
+//         } else {
+//           router.push("/user");   // ✅ normal user redirect
+//         }
+//       }
+
+
+//       // ======================
+//     });
+
+//     // Check redirect result
+//     const checkRedirectResult = async () => {
+//       try {
+//         const result = await getRedirectResult(auth);
+
+//         // ============================
+
+//         // if (result?.user) {
+//         //   console.log("Redirect login success:", result.user);
+//         //   router.push("/");
+//         // }
+
+//         if (result?.user) {
+//           console.log("Redirect login success:", result.user);
+
+//           if (ADMIN_EMAILS.includes(result.user.email)) {
+//             router.push("/admin");
+//           } else {
+//             router.push("/user");
+//           }
+//         }
+
+
+//         // ================================
+
+//       } catch (err) {
+//         console.error("Redirect login error:", err);
+//       }
+//     };
+
+//     checkRedirectResult();
+
+//     return () => unsubscribe();
+//   }, [router]);
+
+//   const isMobile = () => {
+//     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+//       navigator.userAgent
+//     );
+//   };
+
+//   const handleGoogleLogin = async () => {
+//     try {
+//       const provider = new GoogleAuthProvider();
+      
+//       if (isMobile()) {
+//         console.log("Using redirect for mobile");
+//         await signInWithRedirect(auth, provider);
+//       } else {
+//         console.log("Using popup for desktop");
+//         await signInWithPopup(auth, provider);
+//       }
+//     } catch (err) {
+//       console.error("Login error:", err);
+//       alert(err.message);
+//     }
+//   };
+
+//   if (loading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-gray-100">
+//         <div>Loading...</div>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div className="flex min-h-screen items-center justify-center bg-gray-100">
+//       <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
+//         <h1 className="text-xl font-bold mb-4">Login BrainFuel</h1>
+//         <button
+//           onClick={handleGoogleLogin}
+//           className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
+//         >
+//           <img
+//             src="https://www.svgrepo.com/show/475656/google-color.svg"
+//             alt="Google"
+//             className="w-5 h-5"
+//           />
+//           <span>Sign in with Google</span>
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
 
 
 
