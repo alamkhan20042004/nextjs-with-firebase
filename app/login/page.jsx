@@ -13,48 +13,52 @@ import { auth } from "@/lib/firebase";
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
 
-  // Check authentication state on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-      if (currentUser) {
+    // Check auth state on mount
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log("User already logged in:", user);
         router.push("/");
+      } else {
+        setLoading(false);
       }
     });
 
-    // Check for redirect result when component mounts
-    getRedirectResult(auth)
-      .then((result) => {
+    // Check redirect result
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
         if (result?.user) {
           console.log("Redirect login success:", result.user);
           router.push("/");
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Redirect login error:", err);
-        setLoading(false);
-      });
+      }
+    };
+
+    checkRedirectResult();
 
     return () => unsubscribe();
   }, [router]);
+
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  };
 
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
       
-      // More reliable mobile detection
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobile) {
-        // Mobile -> redirect
+      if (isMobile()) {
+        console.log("Using redirect for mobile");
         await signInWithRedirect(auth, provider);
       } else {
-        // Desktop -> popup
+        console.log("Using popup for desktop");
         await signInWithPopup(auth, provider);
-        // No need to manually redirect here as onAuthStateChanged will handle it
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -70,16 +74,10 @@ export default function LoginPage() {
     );
   }
 
-  // If user is already logged in, don't render the login form
-  if (user) {
-    return null;
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
         <h1 className="text-xl font-bold mb-4">Login BrainFuel</h1>
-        
         <button
           onClick={handleGoogleLogin}
           className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
