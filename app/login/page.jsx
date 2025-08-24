@@ -1,118 +1,87 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-// import { auth } from "@/lib/firebase";
-// import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-
-// ===========================================================
-
-// export default function LoginPage() {
-//   const handleGoogleLogin = async () => {
-//     try {
-//       const provider = new GoogleAuthProvider();
-//       await signInWithPopup(auth, provider);
-//       window.location.href = "/"; // login ke baad home par bhej do
-//     } catch (err) {
-//       alert(err.message);
-//     }
-//   };
 
 export default function LoginPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-
-      // ✅ Agar mobile hai to redirect use karein
-      if (/Mobi|Android/i.test(navigator.userAgent)) {
-        // ✅ Mobile -> redirect
-        await signInWithRedirect(auth, provider);
-      } else {
-        // ✅ Desktop pe popup use karo
-        await signInWithPopup(auth, provider);
-        router.push("/"); // login ke baad home par bhej do
-      }
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  // ==============================================================
-
-  // // 🔹 Redirect ke baad result handle karna
-  // useEffect(() => {
-  //   const checkRedirect = async () => {
-  //     try {
-  //       const result = await getRedirectResult(auth);
-  //       if (result && result.user) {
-  //         console.log("Redirect login success:", result.user);
-  //         router.push("/"); // login ke baad home page par redirect
-  //       }
-  //     } catch (error) {
-  //       console.error("Redirect error:", error);
-  //     }
-  //   };
-  //   checkRedirect();
-  // }, [router]);
-
-
-  // ✅ Yeh part sirf redirect ke liye zaroori hai
+  // Check authentication state on mount
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+      if (currentUser) {
+        router.push("/");
+      }
+    });
+
+    // Check for redirect result when component mounts
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
-          console.log("Redirect se login success:", result.user);
+          console.log("Redirect login success:", result.user);
           router.push("/");
         }
       })
       .catch((err) => {
         console.error("Redirect login error:", err);
+        setLoading(false);
       });
+
+    return () => unsubscribe();
   }, [router]);
 
-// ========================================================================
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      
+      // More reliable mobile detection
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Mobile -> redirect
+        await signInWithRedirect(auth, provider);
+      } else {
+        // Desktop -> popup
+        await signInWithPopup(auth, provider);
+        // No need to manually redirect here as onAuthStateChanged will handle it
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      alert(err.message);
+    }
+  };
 
-  // return (
-  //   <div className="flex min-h-screen items-center justify-center bg-gray-100">
-  //     <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
-  //       <h1 className="text-xl font-bold mb-4">Login</h1>
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
-  //       {/* 👇 Google button */}
-       
-  //       <button
-  //         onClick={handleGoogleLogin} // 👈 yahan naam same hona chahiye
-  //         className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
-  //       >
-  //         <img
-  //           src="https://www.svgrepo.com/show/475656/google-color.svg"
-  //           alt="Google"
-  //           className="w-5 h-5"
-  //         />
-  //         <span>Sign in with Google</span>
-  //       </button>
-
-  //     </div>
-  //   </div>
-  // );
-
+  // If user is already logged in, don't render the login form
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
         <h1 className="text-xl font-bold mb-4">Login BrainFuel</h1>
-
-        {/* 👇 Google button */}
-       
+        
         <button
-          onClick={handleGoogleLogin} // 👈 yahan naam same hona chahiye
+          onClick={handleGoogleLogin}
           className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
         >
           <img
@@ -122,14 +91,161 @@ export default function LoginPage() {
           />
           <span>Sign in with Google</span>
         </button>
-
       </div>
     </div>
   );
-  // =====================================================================
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ===============================================================================
+  // ===============================================================================================
+  // "use client";
+  // import { useEffect } from "react";
+  // import { useRouter } from "next/navigation";
+  // import {
+  //   GoogleAuthProvider,
+  //   signInWithPopup,
+  //   signInWithRedirect,
+  //   getRedirectResult,
+  // } from "firebase/auth";
+  // import { auth } from "@/lib/firebase";
+  // // import { auth } from "@/lib/firebase";
+  // // import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+
+  // // ===========================================================
+
+  // // export default function LoginPage() {
+  // //   const handleGoogleLogin = async () => {
+  // //     try {
+  // //       const provider = new GoogleAuthProvider();
+  // //       await signInWithPopup(auth, provider);
+  // //       window.location.href = "/"; // login ke baad home par bhej do
+  // //     } catch (err) {
+  // //       alert(err.message);
+  // //     }
+  // //   };
+
+  // export default function LoginPage() {
+  //   const router = useRouter();
+
+  //   const handleGoogleLogin = async () => {
+  //     try {
+  //       const provider = new GoogleAuthProvider();
+
+  //       // ✅ Agar mobile hai to redirect use karein
+  //       if (/Mobi|Android/i.test(navigator.userAgent)) {
+  //         // ✅ Mobile -> redirect
+  //         await signInWithRedirect(auth, provider);
+  //       } else {
+  //         // ✅ Desktop pe popup use karo
+  //         await signInWithPopup(auth, provider);
+  //         router.push("/"); // login ke baad home par bhej do
+  //       }
+  //     } catch (err) {
+  //       alert(err.message);
+  //     }
+  //   };
+
+  //   // ==============================================================
+
+  //   // // 🔹 Redirect ke baad result handle karna
+  //   // useEffect(() => {
+  //   //   const checkRedirect = async () => {
+  //   //     try {
+  //   //       const result = await getRedirectResult(auth);
+  //   //       if (result && result.user) {
+  //   //         console.log("Redirect login success:", result.user);
+  //   //         router.push("/"); // login ke baad home page par redirect
+  //   //       }
+  //   //     } catch (error) {
+  //   //       console.error("Redirect error:", error);
+  //   //     }
+  //   //   };
+  //   //   checkRedirect();
+  //   // }, [router]);
+
+
+  //   // ✅ Yeh part sirf redirect ke liye zaroori hai
+  //   useEffect(() => {
+  //     getRedirectResult(auth)
+  //       .then((result) => {
+  //         if (result?.user) {
+  //           console.log("Redirect se login success:", result.user);
+  //           router.push("/");
+  //         }
+  //       })
+  //       .catch((err) => {
+  //         console.error("Redirect login error:", err);
+  //       });
+  //   }, [router]);
+
+  // // ========================================================================
+
+  //   // return (
+  //   //   <div className="flex min-h-screen items-center justify-center bg-gray-100">
+  //   //     <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
+  //   //       <h1 className="text-xl font-bold mb-4">Login</h1>
+
+  //   //       {/* 👇 Google button */}
+        
+  //   //       <button
+  //   //         onClick={handleGoogleLogin} // 👈 yahan naam same hona chahiye
+  //   //         className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
+  //   //       >
+  //   //         <img
+  //   //           src="https://www.svgrepo.com/show/475656/google-color.svg"
+  //   //           alt="Google"
+  //   //           className="w-5 h-5"
+  //   //         />
+  //   //         <span>Sign in with Google</span>
+  //   //       </button>
+
+  //   //     </div>
+  //   //   </div>
+  //   // );
+
+
+  //   return (
+  //     <div className="flex min-h-screen items-center justify-center bg-gray-100">
+  //       <div className="p-6 rounded-2xl bg-white shadow-md w-80 text-center">
+  //         <h1 className="text-xl font-bold mb-4">Login BrainFuel</h1>
+
+  //         {/* 👇 Google button */}
+        
+  //         <button
+  //           onClick={handleGoogleLogin} // 👈 yahan naam same hona chahiye
+  //           className="flex items-center justify-center gap-2 w-full max-w-sm bg-white text-gray-700 font-medium py-2 px-4 border border-gray-300 rounded-xl shadow-md hover:bg-gray-100 hover:shadow-lg active:scale-95 transition-all duration-200"
+  //         >
+  //           <img
+  //             src="https://www.svgrepo.com/show/475656/google-color.svg"
+  //             alt="Google"
+  //             className="w-5 h-5"
+  //           />
+  //           <span>Sign in with Google</span>
+  //         </button>
+
+  //       </div>
+  //     </div>
+  //   );
+  //   // =====================================================================
+  // }
+
+// ===============================================================================
+  // ===============================================================================================
 
 
 
