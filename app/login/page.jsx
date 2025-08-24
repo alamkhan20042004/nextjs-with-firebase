@@ -33,6 +33,7 @@ export default function LoginPage() {
 
       // ✅ Agar mobile hai to redirect use karein
       if (/Mobi|Android/i.test(navigator.userAgent)) {
+        // ✅ Mobile -> redirect
         await signInWithRedirect(auth, provider);
       } else {
         // ✅ Desktop pe popup use karo
@@ -44,22 +45,38 @@ export default function LoginPage() {
     }
   };
 
-  // 🔹 Redirect ke baad result handle karna
-  useEffect(() => {
-    const checkRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result && result.user) {
-          console.log("Redirect login success:", result.user);
-          router.push("/"); // login ke baad home page par redirect
-        }
-      } catch (error) {
-        console.error("Redirect error:", error);
-      }
-    };
-    checkRedirect();
-  }, [router]);
+  // ==============================================================
 
+  // // 🔹 Redirect ke baad result handle karna
+  // useEffect(() => {
+  //   const checkRedirect = async () => {
+  //     try {
+  //       const result = await getRedirectResult(auth);
+  //       if (result && result.user) {
+  //         console.log("Redirect login success:", result.user);
+  //         router.push("/"); // login ke baad home page par redirect
+  //       }
+  //     } catch (error) {
+  //       console.error("Redirect error:", error);
+  //     }
+  //   };
+  //   checkRedirect();
+  // }, [router]);
+
+
+  // ✅ Yeh part sirf redirect ke liye zaroori hai
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          console.log("Redirect se login success:", result.user);
+          router.push("/");
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect login error:", err);
+      });
+  }, [router]);
 
 // ========================================================================
 
