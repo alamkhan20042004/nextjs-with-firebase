@@ -112,6 +112,9 @@ export default function LoginPage() {
           <div className="mt-8 text-center text-sm text-gray-500">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </div>
+          <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+            ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
+          </span>
         </div>
       </div>
       
