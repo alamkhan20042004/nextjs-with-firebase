@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { enableIndexedDbPersistence } from "firebase/firestore";
 
 export default function UserPage() {
   const [user, setUser] = useState(null);
@@ -12,7 +13,7 @@ export default function UserPage() {
   const [linkProgress, setLinkProgress] = useState({});
   const [countdowns, setCountdowns] = useState({});
   const [userProgressDoc, setUserProgressDoc] = useState(null);
-
+  
   // ✅ Enable Firestore persistence for caching
   useEffect(() => {
     const enablePersistence = async () => {
@@ -28,26 +29,49 @@ export default function UserPage() {
     };
     enablePersistence();
   }, []);
-
+  
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         window.location.href = "/login";
       } else {
         setUser(u);
         setIsLoading(false);
         
+        // ✅ Update user status to online in Firestore
+        try {
+          const userRef = doc(db, "users", u.uid);
+          await updateDoc(userRef, {
+            isOnline: true,
+            lastActive: new Date()
+          });
+        } catch (error) {
+          console.error("Error updating user status:", error);
+        }
+        
         // ✅ Load from localStorage first for instant UI
         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
         
         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
-        if (savedCountdowns) setCountdowns(JSON.parse(savedCountdowns));
+        if (savedCountdowns) {
+          // Convert stored timestamps to numbers
+          const parsedCountdowns = JSON.parse(savedCountdowns);
+          const numericCountdowns = {};
+          
+          Object.keys(parsedCountdowns).forEach(key => {
+            numericCountdowns[key] = typeof parsedCountdowns[key] === 'object' 
+              ? parsedCountdowns[key].valueOf() 
+              : parsedCountdowns[key];
+          });
+          
+          setCountdowns(numericCountdowns);
+        }
       }
     });
     return () => unsub();
   }, []);
-
+  
   // ✅ Fetch user progress ONLY once when user logs in
   useEffect(() => {
     const fetchUserProgress = async () => {
@@ -60,11 +84,22 @@ export default function UserPage() {
         if (docSnap.exists()) {
           const userData = docSnap.data();
           setLinkProgress(userData.linkProgress || {});
-          setCountdowns(userData.countdowns || {});
+          
+          // Convert Firestore timestamps to numeric values
+          const numericCountdowns = {};
+          if (userData.countdowns) {
+            Object.keys(userData.countdowns).forEach(key => {
+              numericCountdowns[key] = typeof userData.countdowns[key] === 'object' 
+                ? userData.countdowns[key].toMillis() 
+                : userData.countdowns[key];
+            });
+          }
+          
+          setCountdowns(numericCountdowns);
           
           // ✅ Save to localStorage for future visits
           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
-          localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(userData.countdowns || {}));
+          localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(numericCountdowns));
         } else {
           await setDoc(userProgressRef, {
             userId: user.uid,
@@ -79,12 +114,11 @@ export default function UserPage() {
         setError("Failed to load user progress");
       }
     };
-
     if (user) {
       fetchUserProgress();
     }
   }, [user]);
-
+  
   // ✅ Fetch content ONLY once (with caching)
   useEffect(() => {
     const fetchContent = async () => {
@@ -118,7 +152,7 @@ export default function UserPage() {
     
     if (user) fetchContent();
   }, [user]);
-
+  
   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
   useEffect(() => {
     const saveProgressToFirestore = async () => {
@@ -134,57 +168,69 @@ export default function UserPage() {
         console.error("Error saving user progress:", err);
       }
     };
-
+    
     // ✅ Debounce Firestore writes to prevent too many requests
     const timer = setTimeout(() => {
       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
         saveProgressToFirestore();
       }
     }, 2000); // Save every 2 seconds after changes
-
+    
     return () => clearTimeout(timer);
   }, [linkProgress, countdowns, user, userProgressDoc]);
-
+  
   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
   useEffect(() => {
-    const timers = {};
-    
-    Object.entries(countdowns).forEach(([key, endTime]) => {
-      const updateCountdown = () => {
-        const now = new Date().getTime();
-        const distance = endTime - now;
-        
-        if (distance <= 0) {
-          // Timer finished - update locally only
-          setCountdowns(prev => {
-            const newCountdowns = { ...prev };
-            delete newCountdowns[key];
-            
-            // ✅ Update localStorage
-            if (user) {
-              localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
-            }
-            return newCountdowns;
-          });
-        } else {
-          // Just update the local state
-          timers[key] = setTimeout(updateCountdown, 1000);
-        }
-      };
+   if (!user) return;
+   const interval = setInterval(() => {
+     setCountdowns(prev => {
+       const updated = { ...prev };
+       Object.entries(prev).forEach(([key, endTime]) => {
+         const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+         if (endTimeMs - Date.now() <= 0) {
+           delete updated[key];
+         }
+       });
+       if (JSON.stringify(updated) !== JSON.stringify(prev)) {
+         localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updated));
+       }
+       return updated;
+     });
+   }, 1000);
+   return () => clearInterval(interval);
+ }, [user]);
+  
+  // ✅ Function to handle logout with status update
+  const handleLogout = async () => {
+    try {
+      // Update user status to offline before signing out
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          isOnline: false,
+          lastActive: new Date()
+        });
+      }
       
-      timers[key] = setTimeout(updateCountdown, 1000);
-    });
-    
-    return () => {
-      Object.values(timers).forEach(timer => clearTimeout(timer));
-    };
-  }, [countdowns, user]);
-
-  // ✅ Rest of your code remains exactly the same...
-  // [Keep all your existing functions like handleLinkClick, openLink, etc.]
-  // Only the optimization parts above have changed
-
-  // ... (Your existing JSX rendering code)
+      // Sign out from Firebase Auth
+      await signOut(auth);
+      
+      // Clear local storage
+      if (user) {
+        localStorage.removeItem(`progress_${user.uid}`);
+        localStorage.removeItem(`countdowns_${user.uid}`);
+      }
+      
+      // Redirect to login page
+      window.location.href = "/login";
+      
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Still try to sign out even if status update fails
+      await signOut(auth);
+      window.location.href = "/login";
+    }
+  };
 
   const groupedContent = useMemo(() => {
     const visibleContent = content.filter(item => item.visibility !== "hide");
@@ -203,7 +249,7 @@ export default function UserPage() {
     });
     return groups;
   }, [content]);
-
+  
   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
@@ -223,34 +269,55 @@ export default function UserPage() {
     
     // Check if there's an active countdown for this link
     if (countdowns[linkKey]) {
-      const remainingTime = Math.ceil((countdowns[linkKey] - new Date().getTime()) / 1000);
-      const minutes = Math.floor(remainingTime / 60);
-      const seconds = remainingTime % 60;
-      alert(`Please wait ${minutes}m ${seconds}s before accessing this resource.`);
-      return;
+      const endTime = countdowns[linkKey];
+      const remainingTime = Math.ceil((endTime - new Date().getTime()) / 1000);
+      
+      if (remainingTime > 0) {
+        const hours = Math.floor(remainingTime / 3600);
+        const minutes = Math.floor((remainingTime % 3600) / 60);
+        const seconds = remainingTime % 60;
+        alert(`Please wait ${hours}h ${minutes}m ${seconds}s before accessing this resource.`);
+        return;
+      }
     }
     
     // If this is the first link or previous is completed, unlock it
     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
-      // Start 20 minute countdown for next link
+      // Start 24 hour countdown for next link
       if (linkIndex < 49) { // Assuming max 50 links
         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
-        const endTime = new Date().getTime() + 20 * 60 * 1000; // 20 minutes from now
-        setCountdowns(prev => ({ ...prev, [nextLinkKey]: endTime }));
+        const endTime = new Date().getTime() + 24 * 60 * 60 * 1000; // 24 hours from now
+        
+        setCountdowns(prev => ({ 
+          ...prev, 
+          [nextLinkKey]: endTime 
+        }));
+        
+        // Save to localStorage immediately
+        if (user) {
+          const updatedCountdowns = {...countdowns, [nextLinkKey]: endTime};
+          localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updatedCountdowns));
+        }
       }
       
       // Mark current link as completed
       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
       
+      // Save to localStorage immediately
+      if (user) {
+        const updatedProgress = {...linkProgress, [linkKey]: true};
+        localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+      }
+      
       // Open the link
       openLink(url);
     }
   };
-
+  
   const openLink = (url) => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
-
+  
   const getLinkName = (url) => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       return 'YouTube Video';
@@ -271,50 +338,30 @@ export default function UserPage() {
       }
     }
   };
-
-  // const formatCountdown = (milliseconds) => {
-  //   const totalSeconds = Math.ceil(milliseconds / 1000);
-  //   const minutes = Math.floor(totalSeconds / 60);
-  //   const seconds = totalSeconds % 60;
+  
+  // ✅ Modified formatCountdown function to show hours, minutes, and seconds
+  const formatCountdown = (milliseconds) => {
+    const totalSeconds = Math.ceil(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
     
-  //   if (minutes > 0) {
-  //     return `${minutes}m ${seconds}s`;
-  //   } else {
-  //     return `${seconds}s`;
-  //   }
-  // };
-
-// const formatCountdown = (milliseconds) => {
-//   const totalSeconds = Math.ceil(milliseconds / 1000);
-
-//   const hours = Math.floor(totalSeconds / 3600); // 1 hour = 3600 seconds
-//   const minutes = Math.floor((totalSeconds % 3600) / 60);
-//   const seconds = totalSeconds % 60;
-
-//   if (hours > 0) {
-//     return `${hours}h ${minutes}m ${seconds}s`;
-//   } else if (minutes > 0) {
-//     return `${minutes}m ${seconds}s`;
-//   } else {
-//     return `${seconds}s`;
-//   }
-// };
-
-const formatCountdown = (milliseconds) => {
-  const totalSeconds = Math.ceil(milliseconds / 1000);
-  const hours = Math.floor(totalSeconds / 3600); // 1 hour = 3600 seconds
-
-  return `${hours}h`;
-};
-
-
+    // Always show hours, minutes, and seconds
+    return `${hours}h ${minutes}m ${seconds}s`;
+  };
 
   const getCountdownTime = (key) => {
     if (!countdowns[key]) return null;
-    const distance = countdowns[key] - new Date().getTime();
+    
+    // Ensure it's a number
+    const endTime = typeof countdowns[key] === 'number' 
+      ? countdowns[key] 
+      : countdowns[key].toMillis();
+      
+    const distance = endTime - new Date().getTime();
     return Math.max(0, distance);
   };
-
+  
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
@@ -325,7 +372,7 @@ const formatCountdown = (milliseconds) => {
       </div>
     );
   }
-
+  
   return (
     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
@@ -339,7 +386,7 @@ const formatCountdown = (milliseconds) => {
               top: `${Math.random() * 100}%`,
               left: `${Math.random() * 100}%`,
               animationDuration: `${Math.random() * 5 + 3}s`,
-              animationDelay: `${Math.random() * 2}s`
+              animationDelay: `${Math.random() * 2}s`,
             }}
           ></div>
         ))}
@@ -358,7 +405,7 @@ const formatCountdown = (milliseconds) => {
             </h1>
           </div>
           <button
-            onClick={() => signOut(auth)}
+            onClick={handleLogout} // ✅ Use the new logout handler
             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
           >
             Logout
@@ -424,11 +471,11 @@ const formatCountdown = (milliseconds) => {
                                   <div key={index} className="relative">
                                     <button
                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
-                                      disabled={!canAccess || countdownTime !== null}
+                                      disabled={!canAccess || (countdownTime !== null && countdownTime > 0)}
                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
                                         isUnlocked 
                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
-                                          : canAccess && countdownTime === null
+                                          : canAccess && (countdownTime === null || countdownTime === 0)
                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
                                       }`}
@@ -436,14 +483,14 @@ const formatCountdown = (milliseconds) => {
                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
                                       </svg>
-                                      {getLinkName(field)}
+                                      {`${courseName} - Part ${index + 1}`}
                                     </button>
                                     
                                     {/* Status indicators */}
                                     <div className="mt-2 text-xs text-center">
                                       {isUnlocked ? (
                                         <span className="text-green-400">✓ Completed</span>
-                                      ) : countdownTime !== null ? (
+                                      ) : countdownTime !== null && countdownTime > 0 ? (
                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
                                       ) : canAccess ? (
                                         <span className="text-blue-400">Ready to access</span>
@@ -488,6 +535,2659 @@ const formatCountdown = (milliseconds) => {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect, useState, useMemo } from "react";
+// import { auth, db } from "@/lib/firebase";
+// import { onAuthStateChanged, signOut } from "firebase/auth";
+// import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+// import { enableIndexedDbPersistence } from "firebase/firestore";
+
+// export default function UserPage() {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [content, setContent] = useState([]);
+//   const [error, setError] = useState("");
+//   const [linkProgress, setLinkProgress] = useState({});
+//   const [countdowns, setCountdowns] = useState({});
+//   const [userProgressDoc, setUserProgressDoc] = useState(null);
+  
+//   // ✅ Enable Firestore persistence for caching
+//   useEffect(() => {
+//     const enablePersistence = async () => {
+//       try {
+//         await enableIndexedDbPersistence(db);
+//       } catch (err) {
+//         if (err.code == 'failed-precondition') {
+//           console.log("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+//         } else if (err.code == 'unimplemented') {
+//           console.log("The current browser doesn't support persistence.");
+//         }
+//       }
+//     };
+//     enablePersistence();
+//   }, []);
+  
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (u) => {
+//       if (!u) {
+//         window.location.href = "/login";
+//       } else {
+//         setUser(u);
+//         setIsLoading(false);
+        
+//         // ✅ Load from localStorage first for instant UI
+//         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
+//         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
+        
+//         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
+//         if (savedCountdowns) {
+//           // Convert stored timestamps to numbers
+//           const parsedCountdowns = JSON.parse(savedCountdowns);
+//           const numericCountdowns = {};
+          
+//           Object.keys(parsedCountdowns).forEach(key => {
+//             numericCountdowns[key] = typeof parsedCountdowns[key] === 'object' 
+//               ? parsedCountdowns[key].valueOf() 
+//               : parsedCountdowns[key];
+//           });
+          
+//           setCountdowns(numericCountdowns);
+//         }
+//       }
+//     });
+//     return () => unsub();
+//   }, []);
+  
+//   // ✅ Fetch user progress ONLY once when user logs in
+//   useEffect(() => {
+//     const fetchUserProgress = async () => {
+//       if (!user) return;
+      
+//       try {
+//         const userProgressRef = doc(db, "userProgress", user.uid);
+//         const docSnap = await getDoc(userProgressRef);
+        
+//         if (docSnap.exists()) {
+//           const userData = docSnap.data();
+//           setLinkProgress(userData.linkProgress || {});
+          
+//           // Convert Firestore timestamps to numeric values
+//           const numericCountdowns = {};
+//           if (userData.countdowns) {
+//             Object.keys(userData.countdowns).forEach(key => {
+//               numericCountdowns[key] = typeof userData.countdowns[key] === 'object' 
+//                 ? userData.countdowns[key].toMillis() 
+//                 : userData.countdowns[key];
+//             });
+//           }
+          
+//           setCountdowns(numericCountdowns);
+          
+//           // ✅ Save to localStorage for future visits
+//           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(numericCountdowns));
+//         } else {
+//           await setDoc(userProgressRef, {
+//             userId: user.uid,
+//             linkProgress: {},
+//             countdowns: {},
+//             createdAt: new Date()
+//           });
+//         }
+//         setUserProgressDoc(userProgressRef);
+//       } catch (err) {
+//         console.error("Error fetching user progress:", err);
+//         setError("Failed to load user progress");
+//       }
+//     };
+//     if (user) {
+//       fetchUserProgress();
+//     }
+//   }, [user]);
+  
+//   // ✅ Fetch content ONLY once (with caching)
+//   useEffect(() => {
+//     const fetchContent = async () => {
+//       // ✅ Check cache first
+//       const cachedContent = localStorage.getItem('cachedContent');
+//       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
+      
+//       // If cache exists and is less than 1 hour old, use it
+//       if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+//         setContent(JSON.parse(cachedContent));
+//         return;
+//       }
+      
+//       try {
+//         const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+//         const querySnapshot = await getDocs(q);
+//         const contentData = [];
+//         querySnapshot.forEach((doc) => {
+//           contentData.push({ id: doc.id, ...doc.data() });
+//         });
+        
+//         setContent(contentData);
+//         // ✅ Cache the content
+//         localStorage.setItem('cachedContent', JSON.stringify(contentData));
+//         localStorage.setItem('cachedContentTimestamp', Date.now());
+//       } catch (err) {
+//         console.error("Error fetching content:", err);
+//         setError("Failed to load content");
+//       }
+//     };
+    
+//     if (user) fetchContent();
+//   }, [user]);
+  
+//   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
+//   useEffect(() => {
+//     const saveProgressToFirestore = async () => {
+//       if (!user || !userProgressDoc) return;
+      
+//       try {
+//         await updateDoc(userProgressDoc, {
+//           linkProgress,
+//           countdowns,
+//           updatedAt: new Date()
+//         });
+//       } catch (err) {
+//         console.error("Error saving user progress:", err);
+//       }
+//     };
+    
+//     // ✅ Debounce Firestore writes to prevent too many requests
+//     const timer = setTimeout(() => {
+//       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
+//         saveProgressToFirestore();
+//       }
+//     }, 2000); // Save every 2 seconds after changes
+    
+//     return () => clearTimeout(timer);
+//   }, [linkProgress, countdowns, user, userProgressDoc]);
+  
+//   // ======================================================================================
+
+//   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
+//   // useEffect(() => {
+//   //   const timers = {};
+    
+//   //   Object.entries(countdowns).forEach(([key, endTime]) => {
+//   //     // Ensure endTime is a number
+//   //     const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+      
+//   //     const updateCountdown = () => {
+//   //       const now = new Date().getTime();
+//   //       const distance = endTimeMs - now;
+        
+//   //       if (distance <= 0) {
+//   //         // Timer finished - update locally only
+//   //         setCountdowns(prev => {
+//   //           const newCountdowns = { ...prev };
+//   //           delete newCountdowns[key];
+            
+//   //           // ✅ Update localStorage
+//   //           if (user) {
+//   //             localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
+//   //           }
+//   //           return newCountdowns;
+//   //         });
+//   //       } else {
+//   //         // Just update the local state
+//   //         timers[key] = setTimeout(updateCountdown, 1000);
+//   //       }
+//   //     };
+      
+//   //     timers[key] = setTimeout(updateCountdown, 1000);
+//   //   });
+    
+//   //   return () => {
+//   //     Object.values(timers).forEach(timer => clearTimeout(timer));
+//   //   };
+//   // }, [countdowns, user]);
+
+//   useEffect(() => {
+//    if (!user) return;
+//    const interval = setInterval(() => {
+//      setCountdowns(prev => {
+//        const updated = { ...prev };
+//        Object.entries(prev).forEach(([key, endTime]) => {
+//          const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+//          if (endTimeMs - Date.now() <= 0) {
+//            delete updated[key];
+//          }
+//        });
+//        if (JSON.stringify(updated) !== JSON.stringify(prev)) {
+//          localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updated));
+//        }
+//        return updated;
+//      });
+//    }, 1000);
+//    return () => clearInterval(interval);
+//  }, [user]);
+  
+
+// //  ===========================================================================
+
+//   const groupedContent = useMemo(() => {
+//     const visibleContent = content.filter(item => item.visibility !== "hide");
+//     const groups = {};
+//     visibleContent.forEach(item => {
+//       const courseName = item.courseName || "Untitled Course";
+//       if (!groups[courseName]) groups[courseName] = [];
+//       groups[courseName].push(item);
+//     });
+//     Object.keys(groups).forEach(courseName => {
+//       groups[courseName].sort((a, b) => {
+//         const dateA = a.createdAt?.toDate() || new Date(0);
+//         const dateB = b.createdAt?.toDate() || new Date(0);
+//         return dateA - dateB;
+//       });
+//     });
+//     return groups;
+//   }, [content]);
+  
+//   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+//     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+//     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
+    
+//     // Check if previous link has been accessed
+//     if (prevLinkKey && !linkProgress[prevLinkKey]) {
+//       alert("Please complete the previous resource first!");
+//       return;
+//     }
+    
+//     // Check if this link is already unlocked
+//     if (linkProgress[linkKey]) {
+//       // Link is already unlocked, open it
+//       openLink(url);
+//       return;
+//     }
+    
+//     // Check if there's an active countdown for this link
+//     if (countdowns[linkKey]) {
+//       const endTime = countdowns[linkKey];
+//       const remainingTime = Math.ceil((endTime - new Date().getTime()) / 1000);
+      
+//       if (remainingTime > 0) {
+//         const hours = Math.floor(remainingTime / 3600);
+//         const minutes = Math.floor((remainingTime % 3600) / 60);
+//         const seconds = remainingTime % 60;
+//         alert(`Please wait ${hours}h ${minutes}m ${seconds}s before accessing this resource.`);
+//         return;
+//       }
+//     }
+    
+//     // If this is the first link or previous is completed, unlock it
+//     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
+//       // Start 24 hour countdown for next link
+//       if (linkIndex < 49) { // Assuming max 50 links
+//         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
+//         const endTime = new Date().getTime() + 24 * 60 * 60 * 1000; // 24 hours from now
+        
+//         setCountdowns(prev => ({ 
+//           ...prev, 
+//           [nextLinkKey]: endTime 
+//         }));
+        
+//         // Save to localStorage immediately
+//         if (user) {
+//           const updatedCountdowns = {...countdowns, [nextLinkKey]: endTime};
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updatedCountdowns));
+//         }
+//       }
+      
+//       // Mark current link as completed
+//       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+      
+//       // Save to localStorage immediately
+//       if (user) {
+//         const updatedProgress = {...linkProgress, [linkKey]: true};
+//         localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+//       }
+      
+//       // Open the link
+//       openLink(url);
+//     }
+//   };
+  
+//   const openLink = (url) => {
+//     window.open(url, "_blank", "noopener,noreferrer");
+//   };
+  
+//   const getLinkName = (url) => {
+//     if (url.includes('youtube.com') || url.includes('youtu.be')) {
+//       return 'YouTube Video';
+//     } else if (url.includes('github.com')) {
+//       return 'GitHub Repository';
+//     } else if (url.includes('drive.google.com')) {
+//       return 'Google Drive';
+//     } else if (url.includes('dropbox.com')) {
+//       return 'Dropbox File';
+//     } else if (url.includes('pdf')) {
+//       return 'PDF Document';
+//     } else {
+//       try {
+//         const domain = new URL(url).hostname.replace('www.', '');
+//         return domain.charAt(0).toUpperCase() + domain.slice(1);
+//       } catch (e) {
+//         return 'External Link';
+//       }
+//     }
+//   };
+  
+//   // ✅ Modified formatCountdown function to show hours, minutes, and seconds
+//   const formatCountdown = (milliseconds) => {
+//     const totalSeconds = Math.ceil(milliseconds / 1000);
+//     const hours = Math.floor(totalSeconds / 3600);
+//     const minutes = Math.floor((totalSeconds % 3600) / 60);
+//     const seconds = totalSeconds % 60;
+    
+//     // Always show hours, minutes, and seconds
+//     return `${hours}h ${minutes}m ${seconds}s`;
+//   };
+
+//   const getCountdownTime = (key) => {
+//     if (!countdowns[key]) return null;
+    
+//     // Ensure it's a number
+//     const endTime = typeof countdowns[key] === 'number' 
+//       ? countdowns[key] 
+//       : countdowns[key].toMillis();
+      
+//     const distance = endTime - new Date().getTime();
+//     return Math.max(0, distance);
+//   };
+  
+//   if (isLoading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-black">
+//         <div className="relative">
+//           <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
+//           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-300 rounded-full animate-ping"></div>
+//         </div>
+//       </div>
+//     );
+//   }
+  
+//   return (
+//     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(20)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 100 + 20}px`,
+//               height: `${Math.random() * 100 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 5 + 3}s`,
+//               animationDelay: `${Math.random() * 2}s`,
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       <div className="relative z-10 max-w-6xl mx-auto">
+//         <div className="flex justify-between items-center mb-8">
+//           <div className="text-center">
+//             <div className="inline-block p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-4 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+//             <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               Welcome, {user?.email?.split('@')[0]}!
+//             </h1>
+//           </div>
+//           <button
+//             onClick={() => signOut(auth)}
+//             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+//           >
+//             Logout
+//           </button>
+//         </div>
+        
+//         {error && (
+//           <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg mb-6">
+//             <p className="text-red-300">{error}</p>
+//           </div>
+//         )}
+        
+//         {Object.keys(groupedContent).length === 0 ? (
+//           <div className="text-center py-12">
+//             <h2 className="text-2xl font-semibold mb-4">No content available</h2>
+//             <p className="text-gray-400">Check back later for new content.</p>
+//           </div>
+//         ) : (
+//           <div className="space-y-12">
+//             {Object.entries(groupedContent).map(([courseName, parts]) => (
+//               <div key={courseName} className="course-section">
+//                 <div className="text-center mb-8">
+//                   <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//                     {courseName}
+//                   </h2>
+//                   <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+//                 </div>
+                
+//                 <div className="space-y-8">
+//                   {parts.map((part, partIndex) => (
+//                     <div key={part.id} className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+//                       <div className="mb-6 group relative overflow-hidden rounded-2xl shadow-xl">
+//                         {part.imageUrl ? (
+//                           <img 
+//                             src={part.imageUrl} 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         ) : (
+//                           <img 
+//                             src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         )}
+//                       </div>
+                      
+//                       <div className="mb-4">
+//                         <h4 className="text-lg font-semibold mb-3 text-purple-400">Resources for Part {partIndex + 1}:</h4>
+//                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//                           {part.fields
+//                             .filter(field => field.trim() !== '') 
+//                             .map((field, index) => {
+//                               const isUrl = field.startsWith('http://') || field.startsWith('https://');
+//                               const linkKey = `${courseName}_part${partIndex}_link${index}`;
+//                               const isUnlocked = linkProgress[linkKey];
+//                               const prevLinkKey = index > 0 ? `${courseName}_part${partIndex}_link${index - 1}` : null;
+//                               const canAccess = index === 0 || linkProgress[prevLinkKey];
+//                               const countdownTime = getCountdownTime(linkKey);
+                              
+//                               if (isUrl) {
+//                                 return (
+//                                   <div key={index} className="relative">
+//                                     <button
+//                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
+//                                       disabled={!canAccess || (countdownTime !== null && countdownTime > 0)}
+//                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
+//                                         isUnlocked 
+//                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+//                                           : canAccess && (countdownTime === null || countdownTime === 0)
+//                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+//                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
+//                                       }`}
+//                                     >
+//                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+//                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+//                                       </svg>
+//                                       {/* {getLinkName(field)} */}
+//                                       {/* {`${courseName} - Part ${partIndex + 1}`} */}
+
+//                                         {/* ✅ New (fix here) */}
+//   {/* {`${courseName} - Part ${partIndex + 1} - Resource ${index + 1}`} */}
+//   {`${courseName} - Part ${index + 1}`}
+
+//                                     </button>
+                                    
+//                                     {/* Status indicators */}
+//                                     <div className="mt-2 text-xs text-center">
+//                                       {isUnlocked ? (
+//                                         <span className="text-green-400">✓ Completed</span>
+//                                       ) : countdownTime !== null && countdownTime > 0 ? (
+//                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
+//                                       ) : canAccess ? (
+//                                         <span className="text-blue-400">Ready to access</span>
+//                                       ) : (
+//                                         <span className="text-gray-400">Complete previous resource first</span>
+//                                       )}
+//                                     </div>
+//                                   </div>
+//                                 );
+//                               } else {
+//                                 return (
+//                                   <div key={index} className="bg-gray-800 p-4 rounded-lg">
+//                                     <p className="text-gray-300">{field}</p>
+//                                   </div>
+//                                 );
+//                               }
+//                             })}
+//                         </div>
+//                       </div>
+                      
+//                       <div className="mt-4 text-sm text-gray-500">
+//                         {part.nonEmptyCount || part.fields.filter(f => f.trim()).length} resources
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect, useState, useMemo } from "react";
+// import { auth, db } from "@/lib/firebase";
+// import { onAuthStateChanged, signOut } from "firebase/auth";
+// import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+// import { enableIndexedDbPersistence } from "firebase/firestore";
+
+// export default function UserPage() {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [content, setContent] = useState([]);
+//   const [error, setError] = useState("");
+//   const [linkProgress, setLinkProgress] = useState({});
+//   const [countdowns, setCountdowns] = useState({});
+//   const [userProgressDoc, setUserProgressDoc] = useState(null);
+  
+//   // ✅ Enable Firestore persistence for caching
+//   useEffect(() => {
+//     const enablePersistence = async () => {
+//       try {
+//         await enableIndexedDbPersistence(db);
+//       } catch (err) {
+//         if (err.code == 'failed-precondition') {
+//           console.log("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+//         } else if (err.code == 'unimplemented') {
+//           console.log("The current browser doesn't support persistence.");
+//         }
+//       }
+//     };
+//     enablePersistence();
+//   }, []);
+  
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (u) => {
+//       if (!u) {
+//         window.location.href = "/login";
+//       } else {
+//         setUser(u);
+//         setIsLoading(false);
+        
+//         // ✅ Load from localStorage first for instant UI
+//         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
+//         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
+        
+//         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
+//         if (savedCountdowns) {
+//           // Convert stored timestamps to numbers
+//           const parsedCountdowns = JSON.parse(savedCountdowns);
+//           const numericCountdowns = {};
+          
+//           Object.keys(parsedCountdowns).forEach(key => {
+//             numericCountdowns[key] = typeof parsedCountdowns[key] === 'object' 
+//               ? parsedCountdowns[key].valueOf() 
+//               : parsedCountdowns[key];
+//           });
+          
+//           setCountdowns(numericCountdowns);
+//         }
+//       }
+//     });
+//     return () => unsub();
+//   }, []);
+  
+//   // ✅ Fetch user progress ONLY once when user logs in
+//   useEffect(() => {
+//     const fetchUserProgress = async () => {
+//       if (!user) return;
+      
+//       try {
+//         const userProgressRef = doc(db, "userProgress", user.uid);
+//         const docSnap = await getDoc(userProgressRef);
+        
+//         if (docSnap.exists()) {
+//           const userData = docSnap.data();
+//           setLinkProgress(userData.linkProgress || {});
+          
+//           // Convert Firestore timestamps to numeric values
+//           const numericCountdowns = {};
+//           if (userData.countdowns) {
+//             Object.keys(userData.countdowns).forEach(key => {
+//               numericCountdowns[key] = typeof userData.countdowns[key] === 'object' 
+//                 ? userData.countdowns[key].toMillis() 
+//                 : userData.countdowns[key];
+//             });
+//           }
+          
+//           setCountdowns(numericCountdowns);
+          
+//           // ✅ Save to localStorage for future visits
+//           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(numericCountdowns));
+//         } else {
+//           await setDoc(userProgressRef, {
+//             userId: user.uid,
+//             linkProgress: {},
+//             countdowns: {},
+//             createdAt: new Date()
+//           });
+//         }
+//         setUserProgressDoc(userProgressRef);
+//       } catch (err) {
+//         console.error("Error fetching user progress:", err);
+//         setError("Failed to load user progress");
+//       }
+//     };
+//     if (user) {
+//       fetchUserProgress();
+//     }
+//   }, [user]);
+  
+//   // ✅ Fetch content ONLY once (with caching)
+//   useEffect(() => {
+//     const fetchContent = async () => {
+//       // ✅ Check cache first
+//       const cachedContent = localStorage.getItem('cachedContent');
+//       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
+      
+//       // If cache exists and is less than 1 hour old, use it
+//       if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+//         setContent(JSON.parse(cachedContent));
+//         return;
+//       }
+      
+//       try {
+//         const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+//         const querySnapshot = await getDocs(q);
+//         const contentData = [];
+//         querySnapshot.forEach((doc) => {
+//           contentData.push({ id: doc.id, ...doc.data() });
+//         });
+        
+//         setContent(contentData);
+//         // ✅ Cache the content
+//         localStorage.setItem('cachedContent', JSON.stringify(contentData));
+//         localStorage.setItem('cachedContentTimestamp', Date.now());
+//       } catch (err) {
+//         console.error("Error fetching content:", err);
+//         setError("Failed to load content");
+//       }
+//     };
+    
+//     if (user) fetchContent();
+//   }, [user]);
+  
+//   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
+//   useEffect(() => {
+//     const saveProgressToFirestore = async () => {
+//       if (!user || !userProgressDoc) return;
+      
+//       try {
+//         await updateDoc(userProgressDoc, {
+//           linkProgress,
+//           countdowns,
+//           updatedAt: new Date()
+//         });
+//       } catch (err) {
+//         console.error("Error saving user progress:", err);
+//       }
+//     };
+    
+//     // ✅ Debounce Firestore writes to prevent too many requests
+//     const timer = setTimeout(() => {
+//       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
+//         saveProgressToFirestore();
+//       }
+//     }, 2000); // Save every 2 seconds after changes
+    
+//     return () => clearTimeout(timer);
+//   }, [linkProgress, countdowns, user, userProgressDoc]);
+  
+//   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
+//   useEffect(() => {
+//     const timers = {};
+    
+//     Object.entries(countdowns).forEach(([key, endTime]) => {
+//       // Ensure endTime is a number
+//       const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+      
+//       const updateCountdown = () => {
+//         const now = new Date().getTime();
+//         const distance = endTimeMs - now;
+        
+//         if (distance <= 0) {
+//           // Timer finished - update locally only
+//           setCountdowns(prev => {
+//             const newCountdowns = { ...prev };
+//             delete newCountdowns[key];
+            
+//             // ✅ Update localStorage
+//             if (user) {
+//               localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
+//             }
+//             return newCountdowns;
+//           });
+//         } else {
+//           // Just update the local state
+//           timers[key] = setTimeout(updateCountdown, 1000);
+//         }
+//       };
+      
+//       timers[key] = setTimeout(updateCountdown, 1000);
+//     });
+    
+//     return () => {
+//       Object.values(timers).forEach(timer => clearTimeout(timer));
+//     };
+//   }, [countdowns, user]);
+  
+//   const groupedContent = useMemo(() => {
+//     const visibleContent = content.filter(item => item.visibility !== "hide");
+//     const groups = {};
+//     visibleContent.forEach(item => {
+//       const courseName = item.courseName || "Untitled Course";
+//       if (!groups[courseName]) groups[courseName] = [];
+//       groups[courseName].push(item);
+//     });
+//     Object.keys(groups).forEach(courseName => {
+//       groups[courseName].sort((a, b) => {
+//         const dateA = a.createdAt?.toDate() || new Date(0);
+//         const dateB = b.createdAt?.toDate() || new Date(0);
+//         return dateA - dateB;
+//       });
+//     });
+//     return groups;
+//   }, [content]);
+  
+//   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+//     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+//     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
+    
+//     // Check if previous link has been accessed
+//     if (prevLinkKey && !linkProgress[prevLinkKey]) {
+//       alert("Please complete the previous resource first!");
+//       return;
+//     }
+    
+//     // Check if this link is already unlocked
+//     if (linkProgress[linkKey]) {
+//       // Link is already unlocked, open it
+//       openLink(url);
+//       return;
+//     }
+    
+//     // Check if there's an active countdown for this link
+//     if (countdowns[linkKey]) {
+//       const endTime = countdowns[linkKey];
+//       const remainingTime = Math.ceil((endTime - new Date().getTime()) / 1000);
+      
+//       if (remainingTime > 0) {
+//         const hours = Math.floor(remainingTime / 3600);
+//         const minutes = Math.floor((remainingTime % 3600) / 60);
+//         const seconds = remainingTime % 60;
+//         alert(`Please wait ${hours}h ${minutes}m ${seconds}s before accessing this resource.`);
+//         return;
+//       }
+//     }
+    
+//     // If this is the first link or previous is completed, unlock it
+//     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
+//       // Start 24 hour countdown for next link
+//       if (linkIndex < 49) { // Assuming max 50 links
+//         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
+//         const endTime = new Date().getTime() + 24 * 60 * 60 * 1000; // 24 hours from now
+        
+//         setCountdowns(prev => ({ 
+//           ...prev, 
+//           [nextLinkKey]: endTime 
+//         }));
+        
+//         // Save to localStorage immediately
+//         if (user) {
+//           const updatedCountdowns = {...countdowns, [nextLinkKey]: endTime};
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updatedCountdowns));
+//         }
+//       }
+      
+//       // Mark current link as completed
+//       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+      
+//       // Save to localStorage immediately
+//       if (user) {
+//         const updatedProgress = {...linkProgress, [linkKey]: true};
+//         localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+//       }
+      
+//       // Open the link
+//       openLink(url);
+//     }
+//   };
+  
+//   const openLink = (url) => {
+//     window.open(url, "_blank", "noopener,noreferrer");
+//   };
+  
+//   const getLinkName = (url) => {
+//     if (url.includes('youtube.com') || url.includes('youtu.be')) {
+//       return 'YouTube Video';
+//     } else if (url.includes('github.com')) {
+//       return 'GitHub Repository';
+//     } else if (url.includes('drive.google.com')) {
+//       return 'Google Drive';
+//     } else if (url.includes('dropbox.com')) {
+//       return 'Dropbox File';
+//     } else if (url.includes('pdf')) {
+//       return 'PDF Document';
+//     } else {
+//       try {
+//         const domain = new URL(url).hostname.replace('www.', '');
+//         return domain.charAt(0).toUpperCase() + domain.slice(1);
+//       } catch (e) {
+//         return 'External Link';
+//       }
+//     }
+//   };
+  
+//   // ✅ Modified formatCountdown function to show hours, minutes, and seconds
+//   const formatCountdown = (milliseconds) => {
+//     const totalSeconds = Math.ceil(milliseconds / 1000);
+//     const hours = Math.floor(totalSeconds / 3600);
+//     const minutes = Math.floor((totalSeconds % 3600) / 60);
+//     const seconds = totalSeconds % 60;
+    
+//     // Always show hours, minutes, and seconds
+//     return `${hours}h ${minutes}m ${seconds}s`;
+//   };
+
+//   const getCountdownTime = (key) => {
+//     if (!countdowns[key]) return null;
+    
+//     // Ensure it's a number
+//     const endTime = typeof countdowns[key] === 'number' 
+//       ? countdowns[key] 
+//       : countdowns[key].toMillis();
+      
+//     const distance = endTime - new Date().getTime();
+//     return Math.max(0, distance);
+//   };
+  
+//   if (isLoading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-black">
+//         <div className="relative">
+//           <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
+//           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-300 rounded-full animate-ping"></div>
+//         </div>
+//       </div>
+//     );
+//   }
+  
+//   return (
+//     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(20)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 100 + 20}px`,
+//               height: `${Math.random() * 100 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 5 + 3}s`,
+//               animationDelay: `${Math.random() * 2}s`,
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       <div className="relative z-10 max-w-6xl mx-auto">
+//         <div className="flex justify-between items-center mb-8">
+//           <div className="text-center">
+//             <div className="inline-block p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-4 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+//             <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               Welcome, {user?.email?.split('@')[0]}!
+//             </h1>
+//           </div>
+//           <button
+//             onClick={() => signOut(auth)}
+//             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+//           >
+//             Logout
+//           </button>
+//         </div>
+        
+//         {error && (
+//           <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg mb-6">
+//             <p className="text-red-300">{error}</p>
+//           </div>
+//         )}
+        
+//         {Object.keys(groupedContent).length === 0 ? (
+//           <div className="text-center py-12">
+//             <h2 className="text-2xl font-semibold mb-4">No content available</h2>
+//             <p className="text-gray-400">Check back later for new content.</p>
+//           </div>
+//         ) : (
+//           <div className="space-y-12">
+//             {Object.entries(groupedContent).map(([courseName, parts]) => (
+//               <div key={courseName} className="course-section">
+//                 <div className="text-center mb-8">
+//                   <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//                     {courseName}
+//                   </h2>
+//                   <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+//                 </div>
+                
+//                 <div className="space-y-8">
+//                   {parts.map((part, partIndex) => (
+//                     <div key={part.id} className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+//                       <div className="mb-6 group relative overflow-hidden rounded-2xl shadow-xl">
+//                         {part.imageUrl ? (
+//                           <img 
+//                             src={part.imageUrl} 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         ) : (
+//                           <img 
+//                             src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         )}
+//                       </div>
+                      
+//                       <div className="mb-4">
+//                         <h4 className="text-lg font-semibold mb-3 text-purple-400">Resources for Part {partIndex + 1}:</h4>
+//                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//                           {part.fields
+//                             .filter(field => field.trim() !== '') 
+//                             .map((field, index) => {
+//                               const isUrl = field.startsWith('http://') || field.startsWith('https://');
+//                               const linkKey = `${courseName}_part${partIndex}_link${index}`;
+//                               const isUnlocked = linkProgress[linkKey];
+//                               const prevLinkKey = index > 0 ? `${courseName}_part${partIndex}_link${index - 1}` : null;
+//                               const canAccess = index === 0 || linkProgress[prevLinkKey];
+//                               const countdownTime = getCountdownTime(linkKey);
+                              
+//                               if (isUrl) {
+//                                 return (
+//                                   <div key={index} className="relative">
+//                                     <button
+//                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
+//                                       disabled={!canAccess || (countdownTime !== null && countdownTime > 0)}
+//                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
+//                                         isUnlocked 
+//                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+//                                           : canAccess && (countdownTime === null || countdownTime === 0)
+//                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+//                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
+//                                       }`}
+//                                     >
+//                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+//                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+//                                       </svg>
+//                                       {getLinkName(field)}
+//                                     </button>
+                                    
+//                                     {/* Status indicators */}
+//                                     <div className="mt-2 text-xs text-center">
+//                                       {isUnlocked ? (
+//                                         <span className="text-green-400">✓ Completed</span>
+//                                       ) : countdownTime !== null && countdownTime > 0 ? (
+//                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
+//                                       ) : canAccess ? (
+//                                         <span className="text-blue-400">Ready to access</span>
+//                                       ) : (
+//                                         <span className="text-gray-400">Complete previous resource first</span>
+//                                       )}
+//                                     </div>
+//                                   </div>
+//                                 );
+//                               } else {
+//                                 return (
+//                                   <div key={index} className="bg-gray-800 p-4 rounded-lg">
+//                                     <p className="text-gray-300">{field}</p>
+//                                   </div>
+//                                 );
+//                               }
+//                             })}
+//                         </div>
+//                       </div>
+                      
+//                       <div className="mt-4 text-sm text-gray-500">
+//                         {part.nonEmptyCount || part.fields.filter(f => f.trim()).length} resources
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect, useState, useMemo } from "react";
+// import { auth, db } from "@/lib/firebase";
+// import { onAuthStateChanged, signOut } from "firebase/auth";
+// import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+// import { enableIndexedDbPersistence } from "firebase/firestore";
+
+// export default function UserPage() {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [content, setContent] = useState([]);
+//   const [error, setError] = useState("");
+//   const [linkProgress, setLinkProgress] = useState({});
+//   const [countdowns, setCountdowns] = useState({});
+//   const [userProgressDoc, setUserProgressDoc] = useState(null);
+  
+//   // ✅ Enable Firestore persistence for caching
+//   useEffect(() => {
+//     const enablePersistence = async () => {
+//       try {
+//         await enableIndexedDbPersistence(db);
+//       } catch (err) {
+//         if (err.code == 'failed-precondition') {
+//           console.log("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+//         } else if (err.code == 'unimplemented') {
+//           console.log("The current browser doesn't support persistence.");
+//         }
+//       }
+//     };
+//     enablePersistence();
+//   }, []);
+  
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (u) => {
+//       if (!u) {
+//         window.location.href = "/login";
+//       } else {
+//         setUser(u);
+//         setIsLoading(false);
+        
+//         // ✅ Load from localStorage first for instant UI
+//         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
+//         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
+        
+//         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
+//         if (savedCountdowns) setCountdowns(JSON.parse(savedCountdowns));
+//       }
+//     });
+//     return () => unsub();
+//   }, []);
+  
+//   // ✅ Fetch user progress ONLY once when user logs in
+//   useEffect(() => {
+//     const fetchUserProgress = async () => {
+//       if (!user) return;
+      
+//       try {
+//         const userProgressRef = doc(db, "userProgress", user.uid);
+//         const docSnap = await getDoc(userProgressRef);
+        
+//         if (docSnap.exists()) {
+//           const userData = docSnap.data();
+//           setLinkProgress(userData.linkProgress || {});
+//           setCountdowns(userData.countdowns || {});
+          
+//           // ✅ Save to localStorage for future visits
+//           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(userData.countdowns || {}));
+//         } else {
+//           await setDoc(userProgressRef, {
+//             userId: user.uid,
+//             linkProgress: {},
+//             countdowns: {},
+//             createdAt: new Date()
+//           });
+//         }
+//         setUserProgressDoc(userProgressRef);
+//       } catch (err) {
+//         console.error("Error fetching user progress:", err);
+//         setError("Failed to load user progress");
+//       }
+//     };
+//     if (user) {
+//       fetchUserProgress();
+//     }
+//   }, [user]);
+  
+//   // ✅ Fetch content ONLY once (with caching)
+//   useEffect(() => {
+//     const fetchContent = async () => {
+//       // ✅ Check cache first
+//       const cachedContent = localStorage.getItem('cachedContent');
+//       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
+      
+//       // If cache exists and is less than 1 hour old, use it
+//       if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+//         setContent(JSON.parse(cachedContent));
+//         return;
+//       }
+      
+//       try {
+//         const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+//         const querySnapshot = await getDocs(q);
+//         const contentData = [];
+//         querySnapshot.forEach((doc) => {
+//           contentData.push({ id: doc.id, ...doc.data() });
+//         });
+        
+//         setContent(contentData);
+//         // ✅ Cache the content
+//         localStorage.setItem('cachedContent', JSON.stringify(contentData));
+//         localStorage.setItem('cachedContentTimestamp', Date.now());
+//       } catch (err) {
+//         console.error("Error fetching content:", err);
+//         setError("Failed to load content");
+//       }
+//     };
+    
+//     if (user) fetchContent();
+//   }, [user]);
+  
+//   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
+//   useEffect(() => {
+//     const saveProgressToFirestore = async () => {
+//       if (!user || !userProgressDoc) return;
+      
+//       try {
+//         await updateDoc(userProgressDoc, {
+//           linkProgress,
+//           countdowns,
+//           updatedAt: new Date()
+//         });
+//       } catch (err) {
+//         console.error("Error saving user progress:", err);
+//       }
+//     };
+    
+//     // ✅ Debounce Firestore writes to prevent too many requests
+//     const timer = setTimeout(() => {
+//       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
+//         saveProgressToFirestore();
+//       }
+//     }, 2000); // Save every 2 seconds after changes
+    
+//     return () => clearTimeout(timer);
+//   }, [linkProgress, countdowns, user, userProgressDoc]);
+  
+//   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
+//   useEffect(() => {
+//     const timers = {};
+    
+//     Object.entries(countdowns).forEach(([key, endTime]) => {
+//       // Convert Firestore timestamp to milliseconds if needed
+//       const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+      
+//       const updateCountdown = () => {
+//         const now = new Date().getTime();
+//         const distance = endTimeMs - now;
+        
+//         if (distance <= 0) {
+//           // Timer finished - update locally only
+//           setCountdowns(prev => {
+//             const newCountdowns = { ...prev };
+//             delete newCountdowns[key];
+            
+//             // ✅ Update localStorage
+//             if (user) {
+//               localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
+//             }
+//             return newCountdowns;
+//           });
+//         } else {
+//           // Just update the local state
+//           timers[key] = setTimeout(updateCountdown, 1000);
+//         }
+//       };
+      
+//       timers[key] = setTimeout(updateCountdown, 1000);
+//     });
+    
+//     return () => {
+//       Object.values(timers).forEach(timer => clearTimeout(timer));
+//     };
+//   }, [countdowns, user]);
+  
+//   const groupedContent = useMemo(() => {
+//     const visibleContent = content.filter(item => item.visibility !== "hide");
+//     const groups = {};
+//     visibleContent.forEach(item => {
+//       const courseName = item.courseName || "Untitled Course";
+//       if (!groups[courseName]) groups[courseName] = [];
+//       groups[courseName].push(item);
+//     });
+//     Object.keys(groups).forEach(courseName => {
+//       groups[courseName].sort((a, b) => {
+//         const dateA = a.createdAt?.toDate() || new Date(0);
+//         const dateB = b.createdAt?.toDate() || new Date(0);
+//         return dateA - dateB;
+//       });
+//     });
+//     return groups;
+//   }, [content]);
+  
+//   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+//     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+//     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
+    
+//     // Check if previous link has been accessed
+//     if (prevLinkKey && !linkProgress[prevLinkKey]) {
+//       alert("Please complete the previous resource first!");
+//       return;
+//     }
+    
+//     // Check if this link is already unlocked
+//     if (linkProgress[linkKey]) {
+//       // Link is already unlocked, open it
+//       openLink(url);
+//       return;
+//     }
+    
+//     // Check if there's an active countdown for this link
+//     if (countdowns[linkKey]) {
+//       const endTime = typeof countdowns[linkKey] === 'number' 
+//         ? countdowns[linkKey] 
+//         : countdowns[linkKey].toMillis();
+//       const remainingTime = Math.ceil((endTime - new Date().getTime()) / 1000);
+      
+//       if (remainingTime > 0) {
+//         const minutes = Math.floor(remainingTime / 60);
+//         const seconds = remainingTime % 60;
+//         alert(`Please wait ${minutes}m ${seconds}s before accessing this resource.`);
+//         return;
+//       }
+//     }
+    
+//     // If this is the first link or previous is completed, unlock it
+//     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
+//       // Start 20 minute countdown for next link
+//       if (linkIndex < 49) { // Assuming max 50 links
+//         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
+//         const endTime = new Date().getTime() + 20 * 60 * 1000; // 20 minutes from now
+        
+//         setCountdowns(prev => ({ 
+//           ...prev, 
+//           [nextLinkKey]: endTime 
+//         }));
+        
+//         // Save to localStorage immediately
+//         if (user) {
+//           const updatedCountdowns = {...countdowns, [nextLinkKey]: endTime};
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updatedCountdowns));
+//         }
+//       }
+      
+//       // Mark current link as completed
+//       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+      
+//       // Save to localStorage immediately
+//       if (user) {
+//         const updatedProgress = {...linkProgress, [linkKey]: true};
+//         localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+//       }
+      
+//       // Open the link
+//       openLink(url);
+//     }
+//   };
+  
+//   const openLink = (url) => {
+//     window.open(url, "_blank", "noopener,noreferrer");
+//   };
+  
+//   const getLinkName = (url) => {
+//     if (url.includes('youtube.com') || url.includes('youtu.be')) {
+//       return 'YouTube Video';
+//     } else if (url.includes('github.com')) {
+//       return 'GitHub Repository';
+//     } else if (url.includes('drive.google.com')) {
+//       return 'Google Drive';
+//     } else if (url.includes('dropbox.com')) {
+//       return 'Dropbox File';
+//     } else if (url.includes('pdf')) {
+//       return 'PDF Document';
+//     } else {
+//       try {
+//         const domain = new URL(url).hostname.replace('www.', '');
+//         return domain.charAt(0).toUpperCase() + domain.slice(1);
+//       } catch (e) {
+//         return 'External Link';
+//       }
+//     }
+//   };
+  
+//   // ✅ Modified formatCountdown function
+//   const formatCountdown = (milliseconds) => {
+//     const totalSeconds = Math.ceil(milliseconds / 1000);
+//     const hours = Math.floor(totalSeconds / 3600);
+//     const minutes = Math.floor((totalSeconds % 3600) / 60);
+//     const seconds = totalSeconds % 60;
+    
+//     // Agar 1 hour se kam time bacha hai toh minutes aur seconds mein dikhao
+//     if (hours < 1) {
+//       // Agar 1 minute se kam time bacha hai toh seconds mein dikhao
+//       if (minutes < 1) {
+//         return `${seconds}s`;
+//       }
+//       // Warna minutes aur seconds dono dikhao
+//       return `${minutes}m ${seconds}s`;
+//     }
+//     // 1 hour ya zyada time bacha hai toh sirf hours dikhao
+//     return `${hours}h`;
+//   };
+
+//   const getCountdownTime = (key) => {
+//     if (!countdowns[key]) return null;
+    
+//     // Handle both number timestamps and Firestore timestamps
+//     const endTime = typeof countdowns[key] === 'number' 
+//       ? countdowns[key] 
+//       : countdowns[key].toMillis();
+      
+//     const distance = endTime - new Date().getTime();
+//     return Math.max(0, distance);
+//   };
+  
+//   if (isLoading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-black">
+//         <div className="relative">
+//           <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
+//           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-300 rounded-full animate-ping"></div>
+//         </div>
+//       </div>
+//     );
+//   }
+  
+//   return (
+//     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(20)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 100 + 20}px`,
+//               height: `${Math.random() * 100 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               // animationDuration: `${Math.random() * 5 + 3)s`
+//               // animationDelay: `${Math.random() * 2}s`
+//               animationDuration: `${Math.random() * 5 + 3}s`,
+//               animationDelay: `${Math.random() * 2}s`,
+
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       <div className="relative z-10 max-w-6xl mx-auto">
+//         <div className="flex justify-between items-center mb-8">
+//           <div className="text-center">
+//             <div className="inline-block p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-4 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+//             <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               Welcome, {user?.email?.split('@')[0]}!
+//             </h1>
+//           </div>
+//           <button
+//             onClick={() => signOut(auth)}
+//             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+//           >
+//             Logout
+//           </button>
+//         </div>
+        
+//         {error && (
+//           <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg mb-6">
+//             <p className="text-red-300">{error}</p>
+//           </div>
+//         )}
+        
+//         {Object.keys(groupedContent).length === 0 ? (
+//           <div className="text-center py-12">
+//             <h2 className="text-2xl font-semibold mb-4">No content available</h2>
+//             <p className="text-gray-400">Check back later for new content.</p>
+//           </div>
+//         ) : (
+//           <div className="space-y-12">
+//             {Object.entries(groupedContent).map(([courseName, parts]) => (
+//               <div key={courseName} className="course-section">
+//                 <div className="text-center mb-8">
+//                   <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//                     {courseName}
+//                   </h2>
+//                   <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+//                 </div>
+                
+//                 <div className="space-y-8">
+//                   {parts.map((part, partIndex) => (
+//                     <div key={part.id} className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+//                       <div className="mb-6 group relative overflow-hidden rounded-2xl shadow-xl">
+//                         {part.imageUrl ? (
+//                           <img 
+//                             src={part.imageUrl} 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         ) : (
+//                           <img 
+//                             src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         )}
+//                       </div>
+                      
+//                       <div className="mb-4">
+//                         <h4 className="text-lg font-semibold mb-3 text-purple-400">Resources for Part {partIndex + 1}:</h4>
+//                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//                           {part.fields
+//                             .filter(field => field.trim() !== '') 
+//                             .map((field, index) => {
+//                               const isUrl = field.startsWith('http://') || field.startsWith('https://');
+//                               const linkKey = `${courseName}_part${partIndex}_link${index}`;
+//                               const isUnlocked = linkProgress[linkKey];
+//                               const prevLinkKey = index > 0 ? `${courseName}_part${partIndex}_link${index - 1}` : null;
+//                               const canAccess = index === 0 || linkProgress[prevLinkKey];
+//                               const countdownTime = getCountdownTime(linkKey);
+                              
+//                               if (isUrl) {
+//                                 return (
+//                                   <div key={index} className="relative">
+//                                     <button
+//                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
+//                                       disabled={!canAccess || (countdownTime !== null && countdownTime > 0)}
+//                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
+//                                         isUnlocked 
+//                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+//                                           : canAccess && (countdownTime === null || countdownTime === 0)
+//                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+//                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
+//                                       }`}
+//                                     >
+//                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+//                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+//                                       </svg>
+//                                       {getLinkName(field)}
+//                                     </button>
+                                    
+//                                     {/* Status indicators */}
+//                                     <div className="mt-2 text-xs text-center">
+//                                       {isUnlocked ? (
+//                                         <span className="text-green-400">✓ Completed</span>
+//                                       ) : countdownTime !== null && countdownTime > 0 ? (
+//                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
+//                                       ) : canAccess ? (
+//                                         <span className="text-blue-400">Ready to access</span>
+//                                       ) : (
+//                                         <span className="text-gray-400">Complete previous resource first</span>
+//                                       )}
+//                                     </div>
+//                                   </div>
+//                                 );
+//                               } else {
+//                                 return (
+//                                   <div key={index} className="bg-gray-800 p-4 rounded-lg">
+//                                     <p className="text-gray-300">{field}</p>
+//                                   </div>
+//                                 );
+//                               }
+//                             })}
+//                         </div>
+//                       </div>
+                      
+//                       <div className="mt-4 text-sm text-gray-500">
+//                         {part.nonEmptyCount || part.fields.filter(f => f.trim()).length} resources
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect, useState, useMemo } from "react";
+// import { auth, db } from "@/lib/firebase";
+// import { onAuthStateChanged, signOut } from "firebase/auth";
+// import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+// import { enableIndexedDbPersistence } from "firebase/firestore"; // Added missing import
+
+// export default function UserPage() {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [content, setContent] = useState([]);
+//   const [error, setError] = useState("");
+//   const [linkProgress, setLinkProgress] = useState({});
+//   const [countdowns, setCountdowns] = useState({});
+//   const [userProgressDoc, setUserProgressDoc] = useState(null);
+  
+//   // ✅ Enable Firestore persistence for caching
+//   useEffect(() => {
+//     const enablePersistence = async () => {
+//       try {
+//         await enableIndexedDbPersistence(db);
+//       } catch (err) {
+//         if (err.code == 'failed-precondition') {
+//           console.log("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+//         } else if (err.code == 'unimplemented') {
+//           console.log("The current browser doesn't support persistence.");
+//         }
+//       }
+//     };
+//     enablePersistence();
+//   }, []);
+  
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (u) => {
+//       if (!u) {
+//         window.location.href = "/login";
+//       } else {
+//         setUser(u);
+//         setIsLoading(false);
+        
+//         // ✅ Load from localStorage first for instant UI
+//         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
+//         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
+        
+//         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
+//         if (savedCountdowns) setCountdowns(JSON.parse(savedCountdowns));
+//       }
+//     });
+//     return () => unsub();
+//   }, []);
+  
+//   // ✅ Fetch user progress ONLY once when user logs in
+//   useEffect(() => {
+//     const fetchUserProgress = async () => {
+//       if (!user) return;
+      
+//       try {
+//         const userProgressRef = doc(db, "userProgress", user.uid);
+//         const docSnap = await getDoc(userProgressRef);
+        
+//         if (docSnap.exists()) {
+//           const userData = docSnap.data();
+//           setLinkProgress(userData.linkProgress || {});
+//           setCountdowns(userData.countdowns || {});
+          
+//           // ✅ Save to localStorage for future visits
+//           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(userData.countdowns || {}));
+//         } else {
+//           await setDoc(userProgressRef, {
+//             userId: user.uid,
+//             linkProgress: {},
+//             countdowns: {},
+//             createdAt: new Date()
+//           });
+//         }
+//         setUserProgressDoc(userProgressRef);
+//       } catch (err) {
+//         console.error("Error fetching user progress:", err);
+//         setError("Failed to load user progress");
+//       }
+//     };
+//     if (user) {
+//       fetchUserProgress();
+//     }
+//   }, [user]);
+  
+//   // ✅ Fetch content ONLY once (with caching)
+//   useEffect(() => {
+//     const fetchContent = async () => {
+//       // ✅ Check cache first
+//       const cachedContent = localStorage.getItem('cachedContent');
+//       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
+      
+//       // If cache exists and is less than 1 hour old, use it
+//       if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+//         setContent(JSON.parse(cachedContent));
+//         return;
+//       }
+      
+//       try {
+//         const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+//         const querySnapshot = await getDocs(q);
+//         const contentData = [];
+//         querySnapshot.forEach((doc) => {
+//           contentData.push({ id: doc.id, ...doc.data() });
+//         });
+        
+//         setContent(contentData);
+//         // ✅ Cache the content
+//         localStorage.setItem('cachedContent', JSON.stringify(contentData));
+//         localStorage.setItem('cachedContentTimestamp', Date.now());
+//       } catch (err) {
+//         console.error("Error fetching content:", err);
+//         setError("Failed to load content");
+//       }
+//     };
+    
+//     if (user) fetchContent();
+//   }, [user]);
+  
+//   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
+//   useEffect(() => {
+//     const saveProgressToFirestore = async () => {
+//       if (!user || !userProgressDoc) return;
+      
+//       try {
+//         await updateDoc(userProgressDoc, {
+//           linkProgress,
+//           countdowns,
+//           updatedAt: new Date()
+//         });
+//       } catch (err) {
+//         console.error("Error saving user progress:", err);
+//       }
+//     };
+    
+//     // ✅ Debounce Firestore writes to prevent too many requests
+//     const timer = setTimeout(() => {
+//       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
+//         saveProgressToFirestore();
+//       }
+//     }, 2000); // Save every 2 seconds after changes
+    
+//     return () => clearTimeout(timer);
+//   }, [linkProgress, countdowns, user, userProgressDoc]);
+  
+//   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
+//   useEffect(() => {
+//     const timers = {};
+    
+//     Object.entries(countdowns).forEach(([key, endTime]) => {
+//       // Convert Firestore timestamp to milliseconds if needed
+//       const endTimeMs = typeof endTime === 'number' ? endTime : endTime.toMillis();
+      
+//       const updateCountdown = () => {
+//         const now = new Date().getTime();
+//         const distance = endTimeMs - now;
+        
+//         if (distance <= 0) {
+//           // Timer finished - update locally only
+//           setCountdowns(prev => {
+//             const newCountdowns = { ...prev };
+//             delete newCountdowns[key];
+            
+//             // ✅ Update localStorage
+//             if (user) {
+//               localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
+//             }
+//             return newCountdowns;
+//           });
+//         } else {
+//           // Just update the local state
+//           timers[key] = setTimeout(updateCountdown, 1000);
+//         }
+//       };
+      
+//       timers[key] = setTimeout(updateCountdown, 1000);
+//     });
+    
+//     return () => {
+//       Object.values(timers).forEach(timer => clearTimeout(timer));
+//     };
+//   }, [countdowns, user]);
+  
+//   const groupedContent = useMemo(() => {
+//     const visibleContent = content.filter(item => item.visibility !== "hide");
+//     const groups = {};
+//     visibleContent.forEach(item => {
+//       const courseName = item.courseName || "Untitled Course";
+//       if (!groups[courseName]) groups[courseName] = [];
+//       groups[courseName].push(item);
+//     });
+//     Object.keys(groups).forEach(courseName => {
+//       groups[courseName].sort((a, b) => {
+//         const dateA = a.createdAt?.toDate() || new Date(0);
+//         const dateB = b.createdAt?.toDate() || new Date(0);
+//         return dateA - dateB;
+//       });
+//     });
+//     return groups;
+//   }, [content]);
+  
+//   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+//     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+//     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
+    
+//     // Check if previous link has been accessed
+//     if (prevLinkKey && !linkProgress[prevLinkKey]) {
+//       alert("Please complete the previous resource first!");
+//       return;
+//     }
+    
+//     // Check if this link is already unlocked
+//     if (linkProgress[linkKey]) {
+//       // Link is already unlocked, open it
+//       openLink(url);
+//       return;
+//     }
+    
+//     // Check if there's an active countdown for this link
+//     if (countdowns[linkKey]) {
+//       const endTime = typeof countdowns[linkKey] === 'number' 
+//         ? countdowns[linkKey] 
+//         : countdowns[linkKey].toMillis();
+//       const remainingTime = Math.ceil((endTime - new Date().getTime()) / 1000);
+      
+//       if (remainingTime > 0) {
+//         const minutes = Math.floor(remainingTime / 60);
+//         const seconds = remainingTime % 60;
+//         alert(`Please wait ${minutes}m ${seconds}s before accessing this resource.`);
+//         return;
+//       }
+//     }
+    
+//     // If this is the first link or previous is completed, unlock it
+//     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
+//       // Start 20 minute countdown for next link
+//       if (linkIndex < 49) { // Assuming max 50 links
+//         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
+//         const endTime = new Date().getTime() + 20 * 60 * 1000; // 20 minutes from now
+        
+//         setCountdowns(prev => ({ 
+//           ...prev, 
+//           [nextLinkKey]: endTime 
+//         }));
+        
+//         // Save to localStorage immediately
+//         if (user) {
+//           const updatedCountdowns = {...countdowns, [nextLinkKey]: endTime};
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(updatedCountdowns));
+//         }
+//       }
+      
+//       // Mark current link as completed
+//       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+      
+//       // Save to localStorage immediately
+//       if (user) {
+//         const updatedProgress = {...linkProgress, [linkKey]: true};
+//         localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+//       }
+      
+//       // Open the link
+//       openLink(url);
+//     }
+//   };
+  
+//   const openLink = (url) => {
+//     window.open(url, "_blank", "noopener,noreferrer");
+//   };
+  
+//   const getLinkName = (url) => {
+//     if (url.includes('youtube.com') || url.includes('youtu.be')) {
+//       return 'YouTube Video';
+//     } else if (url.includes('github.com')) {
+//       return 'GitHub Repository';
+//     } else if (url.includes('drive.google.com')) {
+//       return 'Google Drive';
+//     } else if (url.includes('dropbox.com')) {
+//       return 'Dropbox File';
+//     } else if (url.includes('pdf')) {
+//       return 'PDF Document';
+//     } else {
+//       try {
+//         const domain = new URL(url).hostname.replace('www.', '');
+//         return domain.charAt(0).toUpperCase() + domain.slice(1);
+//       } catch (e) {
+//         return 'External Link';
+//       }
+//     }
+//   };
+  
+//   const formatCountdown = (milliseconds) => {
+//     const totalSeconds = Math.ceil(milliseconds / 1000);
+//     const hours = Math.floor(totalSeconds / 3600);
+//     return `${hours}h`;
+//   };
+
+//   const getCountdownTime = (key) => {
+//     if (!countdowns[key]) return null;
+    
+//     // Handle both number timestamps and Firestore timestamps
+//     const endTime = typeof countdowns[key] === 'number' 
+//       ? countdowns[key] 
+//       : countdowns[key].toMillis();
+      
+//     const distance = endTime - new Date().getTime();
+//     return Math.max(0, distance);
+//   };
+  
+//   if (isLoading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-black">
+//         <div className="relative">
+//           <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
+//           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-300 rounded-full animate-ping"></div>
+//         </div>
+//       </div>
+//     );
+//   }
+  
+//   return (
+//     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(20)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 100 + 20}px`,
+//               height: `${Math.random() * 100 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 5 + 3}s`,
+//               animationDelay: `${Math.random() * 2}s`
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       <div className="relative z-10 max-w-6xl mx-auto">
+//         <div className="flex justify-between items-center mb-8">
+//           <div className="text-center">
+//             <div className="inline-block p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-4 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+//             <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               Welcome, {user?.email?.split('@')[0]}!
+//             </h1>
+//           </div>
+//           <button
+//             onClick={() => signOut(auth)}
+//             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+//           >
+//             Logout
+//           </button>
+//         </div>
+        
+//         {error && (
+//           <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg mb-6">
+//             <p className="text-red-300">{error}</p>
+//           </div>
+//         )}
+        
+//         {Object.keys(groupedContent).length === 0 ? (
+//           <div className="text-center py-12">
+//             <h2 className="text-2xl font-semibold mb-4">No content available</h2>
+//             <p className="text-gray-400">Check back later for new content.</p>
+//           </div>
+//         ) : (
+//           <div className="space-y-12">
+//             {Object.entries(groupedContent).map(([courseName, parts]) => (
+//               <div key={courseName} className="course-section">
+//                 <div className="text-center mb-8">
+//                   <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//                     {courseName}
+//                   </h2>
+//                   <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+//                 </div>
+                
+//                 <div className="space-y-8">
+//                   {parts.map((part, partIndex) => (
+//                     <div key={part.id} className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+//                       <div className="mb-6 group relative overflow-hidden rounded-2xl shadow-xl">
+//                         {part.imageUrl ? (
+//                           <img 
+//                             src={part.imageUrl} 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         ) : (
+//                           <img 
+//                             src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         )}
+//                       </div>
+                      
+//                       <div className="mb-4">
+//                         <h4 className="text-lg font-semibold mb-3 text-purple-400">Resources for Part {partIndex + 1}:</h4>
+//                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//                           {part.fields
+//                             .filter(field => field.trim() !== '') 
+//                             .map((field, index) => {
+//                               const isUrl = field.startsWith('http://') || field.startsWith('https://');
+//                               const linkKey = `${courseName}_part${partIndex}_link${index}`;
+//                               const isUnlocked = linkProgress[linkKey];
+//                               const prevLinkKey = index > 0 ? `${courseName}_part${partIndex}_link${index - 1}` : null;
+//                               const canAccess = index === 0 || linkProgress[prevLinkKey];
+//                               const countdownTime = getCountdownTime(linkKey);
+                              
+//                               if (isUrl) {
+//                                 return (
+//                                   <div key={index} className="relative">
+//                                     <button
+//                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
+//                                       disabled={!canAccess || (countdownTime !== null && countdownTime > 0)}
+//                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
+//                                         isUnlocked 
+//                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+//                                           : canAccess && (countdownTime === null || countdownTime === 0)
+//                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+//                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
+//                                       }`}
+//                                     >
+//                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+//                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+//                                       </svg>
+//                                       {getLinkName(field)}
+//                                     </button>
+                                    
+//                                     {/* Status indicators */}
+//                                     <div className="mt-2 text-xs text-center">
+//                                       {isUnlocked ? (
+//                                         <span className="text-green-400">✓ Completed</span>
+//                                       ) : countdownTime !== null && countdownTime > 0 ? (
+//                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
+//                                       ) : canAccess ? (
+//                                         <span className="text-blue-400">Ready to access</span>
+//                                       ) : (
+//                                         <span className="text-gray-400">Complete previous resource first</span>
+//                                       )}
+//                                     </div>
+//                                   </div>
+//                                 );
+//                               } else {
+//                                 return (
+//                                   <div key={index} className="bg-gray-800 p-4 rounded-lg">
+//                                     <p className="text-gray-300">{field}</p>
+//                                   </div>
+//                                 );
+//                               }
+//                             })}
+//                         </div>
+//                       </div>
+                      
+//                       <div className="mt-4 text-sm text-gray-500">
+//                         {part.nonEmptyCount || part.fields.filter(f => f.trim()).length} resources
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect, useState, useMemo } from "react";
+// import { auth, db } from "@/lib/firebase";
+// import { onAuthStateChanged, signOut } from "firebase/auth";
+// import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+
+// export default function UserPage() {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [content, setContent] = useState([]);
+//   const [error, setError] = useState("");
+//   const [linkProgress, setLinkProgress] = useState({});
+//   const [countdowns, setCountdowns] = useState({});
+//   const [userProgressDoc, setUserProgressDoc] = useState(null);
+
+//   // ✅ Enable Firestore persistence for caching
+//   useEffect(() => {
+//     const enablePersistence = async () => {
+//       try {
+//         await enableIndexedDbPersistence(db);
+//       } catch (err) {
+//         if (err.code == 'failed-precondition') {
+//           console.log("Multiple tabs open, persistence can only be enabled in one tab at a time.");
+//         } else if (err.code == 'unimplemented') {
+//           console.log("The current browser doesn't support persistence.");
+//         }
+//       }
+//     };
+//     enablePersistence();
+//   }, []);
+
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (u) => {
+//       if (!u) {
+//         window.location.href = "/login";
+//       } else {
+//         setUser(u);
+//         setIsLoading(false);
+        
+//         // ✅ Load from localStorage first for instant UI
+//         const savedProgress = localStorage.getItem(`progress_${u.uid}`);
+//         const savedCountdowns = localStorage.getItem(`countdowns_${u.uid}`);
+        
+//         if (savedProgress) setLinkProgress(JSON.parse(savedProgress));
+//         if (savedCountdowns) setCountdowns(JSON.parse(savedCountdowns));
+//       }
+//     });
+//     return () => unsub();
+//   }, []);
+
+//   // ✅ Fetch user progress ONLY once when user logs in
+//   useEffect(() => {
+//     const fetchUserProgress = async () => {
+//       if (!user) return;
+      
+//       try {
+//         const userProgressRef = doc(db, "userProgress", user.uid);
+//         const docSnap = await getDoc(userProgressRef);
+        
+//         if (docSnap.exists()) {
+//           const userData = docSnap.data();
+//           setLinkProgress(userData.linkProgress || {});
+//           setCountdowns(userData.countdowns || {});
+          
+//           // ✅ Save to localStorage for future visits
+//           localStorage.setItem(`progress_${user.uid}`, JSON.stringify(userData.linkProgress || {}));
+//           localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(userData.countdowns || {}));
+//         } else {
+//           await setDoc(userProgressRef, {
+//             userId: user.uid,
+//             linkProgress: {},
+//             countdowns: {},
+//             createdAt: new Date()
+//           });
+//         }
+//         setUserProgressDoc(userProgressRef);
+//       } catch (err) {
+//         console.error("Error fetching user progress:", err);
+//         setError("Failed to load user progress");
+//       }
+//     };
+
+//     if (user) {
+//       fetchUserProgress();
+//     }
+//   }, [user]);
+
+//   // ✅ Fetch content ONLY once (with caching)
+//   useEffect(() => {
+//     const fetchContent = async () => {
+//       // ✅ Check cache first
+//       const cachedContent = localStorage.getItem('cachedContent');
+//       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
+      
+//       // If cache exists and is less than 1 hour old, use it
+//       if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+//         setContent(JSON.parse(cachedContent));
+//         return;
+//       }
+      
+//       try {
+//         const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+//         const querySnapshot = await getDocs(q);
+//         const contentData = [];
+//         querySnapshot.forEach((doc) => {
+//           contentData.push({ id: doc.id, ...doc.data() });
+//         });
+        
+//         setContent(contentData);
+//         // ✅ Cache the content
+//         localStorage.setItem('cachedContent', JSON.stringify(contentData));
+//         localStorage.setItem('cachedContentTimestamp', Date.now());
+//       } catch (err) {
+//         console.error("Error fetching content:", err);
+//         setError("Failed to load content");
+//       }
+//     };
+    
+//     if (user) fetchContent();
+//   }, [user]);
+
+//   // ✅ Save progress to Firestore ONLY when changes occur (not on every render)
+//   useEffect(() => {
+//     const saveProgressToFirestore = async () => {
+//       if (!user || !userProgressDoc) return;
+      
+//       try {
+//         await updateDoc(userProgressDoc, {
+//           linkProgress,
+//           countdowns,
+//           updatedAt: new Date()
+//         });
+//       } catch (err) {
+//         console.error("Error saving user progress:", err);
+//       }
+//     };
+
+//     // ✅ Debounce Firestore writes to prevent too many requests
+//     const timer = setTimeout(() => {
+//       if (Object.keys(linkProgress).length > 0 || Object.keys(countdowns).length > 0) {
+//         saveProgressToFirestore();
+//       }
+//     }, 2000); // Save every 2 seconds after changes
+
+//     return () => clearTimeout(timer);
+//   }, [linkProgress, countdowns, user, userProgressDoc]);
+
+//   // ✅ Handle countdown timers LOCALLY (no Firestore reads/writes)
+//   useEffect(() => {
+//     const timers = {};
+    
+//     Object.entries(countdowns).forEach(([key, endTime]) => {
+//       const updateCountdown = () => {
+//         const now = new Date().getTime();
+//         const distance = endTime - now;
+        
+//         if (distance <= 0) {
+//           // Timer finished - update locally only
+//           setCountdowns(prev => {
+//             const newCountdowns = { ...prev };
+//             delete newCountdowns[key];
+            
+//             // ✅ Update localStorage
+//             if (user) {
+//               localStorage.setItem(`countdowns_${user.uid}`, JSON.stringify(newCountdowns));
+//             }
+//             return newCountdowns;
+//           });
+//         } else {
+//           // Just update the local state
+//           timers[key] = setTimeout(updateCountdown, 1000);
+//         }
+//       };
+      
+//       timers[key] = setTimeout(updateCountdown, 1000);
+//     });
+    
+//     return () => {
+//       Object.values(timers).forEach(timer => clearTimeout(timer));
+//     };
+//   }, [countdowns, user]);
+
+//   // ✅ Rest of your code remains exactly the same...
+//   // [Keep all your existing functions like handleLinkClick, openLink, etc.]
+//   // Only the optimization parts above have changed
+
+//   // ... (Your existing JSX rendering code)
+
+//   const groupedContent = useMemo(() => {
+//     const visibleContent = content.filter(item => item.visibility !== "hide");
+//     const groups = {};
+//     visibleContent.forEach(item => {
+//       const courseName = item.courseName || "Untitled Course";
+//       if (!groups[courseName]) groups[courseName] = [];
+//       groups[courseName].push(item);
+//     });
+//     Object.keys(groups).forEach(courseName => {
+//       groups[courseName].sort((a, b) => {
+//         const dateA = a.createdAt?.toDate() || new Date(0);
+//         const dateB = b.createdAt?.toDate() || new Date(0);
+//         return dateA - dateB;
+//       });
+//     });
+//     return groups;
+//   }, [content]);
+
+//   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+//     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+//     const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
+    
+//     // Check if previous link has been accessed
+//     if (prevLinkKey && !linkProgress[prevLinkKey]) {
+//       alert("Please complete the previous resource first!");
+//       return;
+//     }
+    
+//     // Check if this link is already unlocked
+//     if (linkProgress[linkKey]) {
+//       // Link is already unlocked, open it
+//       openLink(url);
+//       return;
+//     }
+    
+//     // Check if there's an active countdown for this link
+//     if (countdowns[linkKey]) {
+//       const remainingTime = Math.ceil((countdowns[linkKey] - new Date().getTime()) / 1000);
+//       const minutes = Math.floor(remainingTime / 60);
+//       const seconds = remainingTime % 60;
+//       alert(`Please wait ${minutes}m ${seconds}s before accessing this resource.`);
+//       return;
+//     }
+    
+//     // If this is the first link or previous is completed, unlock it
+//     if (linkIndex === 0 || linkProgress[prevLinkKey]) {
+//       // Start 20 minute countdown for next link
+//       if (linkIndex < 49) { // Assuming max 50 links
+//         const nextLinkKey = `${courseName}_part${partIndex}_link${linkIndex + 1}`;
+//         const endTime = new Date().getTime() + 20 * 60 * 1000; // 20 minutes from now
+//         setCountdowns(prev => ({ ...prev, [nextLinkKey]: endTime }));
+//       }
+      
+//       // Mark current link as completed
+//       setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+      
+//       // Open the link
+//       openLink(url);
+//     }
+//   };
+
+//   const openLink = (url) => {
+//     window.open(url, "_blank", "noopener,noreferrer");
+//   };
+
+//   const getLinkName = (url) => {
+//     if (url.includes('youtube.com') || url.includes('youtu.be')) {
+//       return 'YouTube Video';
+//     } else if (url.includes('github.com')) {
+//       return 'GitHub Repository';
+//     } else if (url.includes('drive.google.com')) {
+//       return 'Google Drive';
+//     } else if (url.includes('dropbox.com')) {
+//       return 'Dropbox File';
+//     } else if (url.includes('pdf')) {
+//       return 'PDF Document';
+//     } else {
+//       try {
+//         const domain = new URL(url).hostname.replace('www.', '');
+//         return domain.charAt(0).toUpperCase() + domain.slice(1);
+//       } catch (e) {
+//         return 'External Link';
+//       }
+//     }
+//   };
+
+//   // const formatCountdown = (milliseconds) => {
+//   //   const totalSeconds = Math.ceil(milliseconds / 1000);
+//   //   const minutes = Math.floor(totalSeconds / 60);
+//   //   const seconds = totalSeconds % 60;
+    
+//   //   if (minutes > 0) {
+//   //     return `${minutes}m ${seconds}s`;
+//   //   } else {
+//   //     return `${seconds}s`;
+//   //   }
+//   // };
+
+// // const formatCountdown = (milliseconds) => {
+// //   const totalSeconds = Math.ceil(milliseconds / 1000);
+
+// //   const hours = Math.floor(totalSeconds / 3600); // 1 hour = 3600 seconds
+// //   const minutes = Math.floor((totalSeconds % 3600) / 60);
+// //   const seconds = totalSeconds % 60;
+
+// //   if (hours > 0) {
+// //     return `${hours}h ${minutes}m ${seconds}s`;
+// //   } else if (minutes > 0) {
+// //     return `${minutes}m ${seconds}s`;
+// //   } else {
+// //     return `${seconds}s`;
+// //   }
+// // };
+
+// const formatCountdown = (milliseconds) => {
+//   const totalSeconds = Math.ceil(milliseconds / 1000);
+//   const hours = Math.floor(totalSeconds / 3600); // 1 hour = 3600 seconds
+
+//   return `${hours}h`;
+// };
+
+
+
+//   const getCountdownTime = (key) => {
+//     if (!countdowns[key]) return null;
+//     const distance = countdowns[key] - new Date().getTime();
+//     return Math.max(0, distance);
+//   };
+
+//   if (isLoading) {
+//     return (
+//       <div className="flex min-h-screen items-center justify-center bg-black">
+//         <div className="relative">
+//           <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
+//           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-300 rounded-full animate-ping"></div>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div className="min-h-screen bg-black text-white p-4 relative overflow-hidden">
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(20)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 100 + 20}px`,
+//               height: `${Math.random() * 100 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 5 + 3}s`,
+//               animationDelay: `${Math.random() * 2}s`
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       <div className="relative z-10 max-w-6xl mx-auto">
+//         <div className="flex justify-between items-center mb-8">
+//           <div className="text-center">
+//             <div className="inline-block p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-4 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+//             <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               Welcome, {user?.email?.split('@')[0]}!
+//             </h1>
+//           </div>
+//           <button
+//             onClick={() => signOut(auth)}
+//             className="px-8 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+//           >
+//             Logout
+//           </button>
+//         </div>
+        
+//         {error && (
+//           <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg mb-6">
+//             <p className="text-red-300">{error}</p>
+//           </div>
+//         )}
+        
+//         {Object.keys(groupedContent).length === 0 ? (
+//           <div className="text-center py-12">
+//             <h2 className="text-2xl font-semibold mb-4">No content available</h2>
+//             <p className="text-gray-400">Check back later for new content.</p>
+//           </div>
+//         ) : (
+//           <div className="space-y-12">
+//             {Object.entries(groupedContent).map(([courseName, parts]) => (
+//               <div key={courseName} className="course-section">
+//                 <div className="text-center mb-8">
+//                   <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//                     {courseName}
+//                   </h2>
+//                   <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+//                 </div>
+                
+//                 <div className="space-y-8">
+//                   {parts.map((part, partIndex) => (
+//                     <div key={part.id} className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+//                       <div className="mb-6 group relative overflow-hidden rounded-2xl shadow-xl">
+//                         {part.imageUrl ? (
+//                           <img 
+//                             src={part.imageUrl} 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         ) : (
+//                           <img 
+//                             src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+//                             alt={`Part ${partIndex + 1} of ${courseName}`} 
+//                             className="w-full h-80 object-cover transform transition-transform duration-500 group-hover:scale-105"
+//                           />
+//                         )}
+//                       </div>
+                      
+//                       <div className="mb-4">
+//                         <h4 className="text-lg font-semibold mb-3 text-purple-400">Resources for Part {partIndex + 1}:</h4>
+//                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//                           {part.fields
+//                             .filter(field => field.trim() !== '') 
+//                             .map((field, index) => {
+//                               const isUrl = field.startsWith('http://') || field.startsWith('https://');
+//                               const linkKey = `${courseName}_part${partIndex}_link${index}`;
+//                               const isUnlocked = linkProgress[linkKey];
+//                               const prevLinkKey = index > 0 ? `${courseName}_part${partIndex}_link${index - 1}` : null;
+//                               const canAccess = index === 0 || linkProgress[prevLinkKey];
+//                               const countdownTime = getCountdownTime(linkKey);
+                              
+//                               if (isUrl) {
+//                                 return (
+//                                   <div key={index} className="relative">
+//                                     <button
+//                                       onClick={() => handleLinkClick(courseName, partIndex, index, field)}
+//                                       disabled={!canAccess || countdownTime !== null}
+//                                       className={`w-full font-medium py-3 px-4 rounded-lg transition duration-300 transform flex items-center justify-center ${
+//                                         isUnlocked 
+//                                           ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+//                                           : canAccess && countdownTime === null
+//                                             ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+//                                             : "bg-gray-700 text-gray-400 cursor-not-allowed"
+//                                       }`}
+//                                     >
+//                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+//                                         <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+//                                       </svg>
+//                                       {getLinkName(field)}
+//                                     </button>
+                                    
+//                                     {/* Status indicators */}
+//                                     <div className="mt-2 text-xs text-center">
+//                                       {isUnlocked ? (
+//                                         <span className="text-green-400">✓ Completed</span>
+//                                       ) : countdownTime !== null ? (
+//                                         <span className="text-yellow-400">Available in {formatCountdown(countdownTime)}</span>
+//                                       ) : canAccess ? (
+//                                         <span className="text-blue-400">Ready to access</span>
+//                                       ) : (
+//                                         <span className="text-gray-400">Complete previous resource first</span>
+//                                       )}
+//                                     </div>
+//                                   </div>
+//                                 );
+//                               } else {
+//                                 return (
+//                                   <div key={index} className="bg-gray-800 p-4 rounded-lg">
+//                                     <p className="text-gray-300">{field}</p>
+//                                   </div>
+//                                 );
+//                               }
+//                             })}
+//                         </div>
+//                       </div>
+                      
+//                       <div className="mt-4 text-sm text-gray-500">
+//                         {part.nonEmptyCount || part.fields.filter(f => f.trim()).length} resources
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         )}
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
 
 //  upper code iss very very efficient for not loss reads of firebase
 

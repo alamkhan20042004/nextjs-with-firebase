@@ -8,14 +8,87 @@ import {
   getRedirectResult,
   onAuthStateChanged,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { ADMIN_EMAILS } from "@/lib/config";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 
 export default function LoginPage() {
   const router = useRouter();
-  
-  const handleRedirectAfterLogin = (user) => {
+
+  // ✅ Fetch Location from IP
+  const fetchLocation = async () => {
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      return await res.json();
+    } catch (e) {
+      console.warn("Location fetch failed:", e);
+      return null;
+    }
+  };
+
+  // ✅ Firestore helper: create or update /users/{uid}
+  const upsertUser = async (user) => {
     if (!user) return;
+    const ref = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+
+    // ---- fetch location
+    const loc = await fetchLocation();
+
+    const base = {
+      email: user.email ?? "",
+      name: user.displayName ?? "",
+      photoURL: user.photoURL ?? "",
+      provider: user.providerData?.[0]?.providerId ?? "google",
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      isOnline: true, // ✅ set online
+      location: loc ? `${loc.city}, ${loc.country_name}` : "Unknown",
+    };
+
+    if (!snap.exists()) {
+      await setDoc(ref, { ...base, createdAt: serverTimestamp() });
+    } else {
+      await updateDoc(ref, base);
+    }
+
+    // ✅ create/update onlineUsers/{uid} doc
+    await setDoc(doc(db, "onlineUsers", user.uid), {
+      email: user.email,
+      lastActive: serverTimestamp(),
+    });
+  };
+
+  // ✅ Mark user offline on unload
+  const markOfflineOnUnload = (uid) => {
+    const handleUnload = async () => {
+      try {
+        await updateDoc(doc(db, "users", uid), { isOnline: false });
+        await deleteDoc(doc(db, "onlineUsers", uid));
+      } catch (err) {
+        console.error("Error marking offline:", err);
+      }
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  };
+
+  // ✅ after login: save user -> route to /admin or /user
+  const handleRedirectAfterLogin = async (user) => {
+    if (!user) return;
+    await upsertUser(user);
+
+    // start offline cleanup
+    markOfflineOnUnload(user.uid);
+
     if (ADMIN_EMAILS.includes(user.email)) {
       router.push("/admin");
     } else {
@@ -30,7 +103,7 @@ export default function LoginPage() {
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
-        handleRedirectAfterLogin(result.user);
+        await handleRedirectAfterLogin(result.user);
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -44,7 +117,7 @@ export default function LoginPage() {
         handleRedirectAfterLogin(user);
       }
     });
-    
+
     getRedirectResult(auth)
       .then((result) => {
         if (result?.user) {
@@ -52,16 +125,16 @@ export default function LoginPage() {
         }
       })
       .catch((err) => console.error("Redirect login error:", err));
-    
+
     return () => unsub();
   }, [router]);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated background elements */}
+      {/* Background bubbles */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(15)].map((_, i) => (
-          <div 
+          <div
             key={i}
             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
             style={{
@@ -70,54 +143,47 @@ export default function LoginPage() {
               top: `${Math.random() * 100}%`,
               left: `${Math.random() * 100}%`,
               animationDuration: `${Math.random() * 6 + 4}s`,
-              animationDelay: `${Math.random() * 2}s`
+              animationDelay: `${Math.random() * 2}s`,
             }}
           ></div>
         ))}
       </div>
-      
-      {/* Login card with animation */}
+
+      {/* Card */}
       <div className="relative z-10 w-full max-w-md transform transition-all duration-700 animate-fadeIn">
         <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl">
           <div className="text-center mb-8">
-            {/* Logo/Icon */}
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6 transform transition-transform duration-500 hover:scale-110">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M12.395 2.553a1 1 0..." clipRule="evenodd" />
               </svg>
             </div>
-            
+
             <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
               BrainFuel
             </h1>
             <p className="text-gray-400">Sign in to access your dashboard</p>
           </div>
-          
-          {/* Google Sign-In Button */}
+
+          {/* Google Button */}
           <button
             onClick={handleGoogleLogin}
-            className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group"
+            className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg hover:scale-[1.02] transition"
           >
-            <div className="relative">
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                alt="Google"
-                className="w-6 h-6"
-              />
-              <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-            </div>
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-6 h-6" />
             <span className="font-medium">Continue with Google</span>
           </button>
-          
+
           <div className="mt-8 text-center text-sm text-gray-500">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </div>
-          <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+
+          <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse block mt-4">
             ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
           </span>
         </div>
       </div>
-      
+
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
@@ -130,6 +196,700 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signInWithRedirect,
+//   getRedirectResult,
+//   onAuthStateChanged,
+// } from "firebase/auth";
+// import { auth, db } from "@/lib/firebase";
+// import { ADMIN_EMAILS } from "@/lib/config";
+// import {
+//   doc,
+//   getDoc,
+//   setDoc,
+//   updateDoc,
+//   serverTimestamp,
+// } from "firebase/firestore";
+
+// export default function LoginPage() {
+//   const router = useRouter();
+
+//   // -- Firestore helper: create or update /users/{uid}
+//   const upsertUser = async (user) => {
+//     if (!user) return;
+//     const ref = doc(db, "users", user.uid);
+//     const snap = await getDoc(ref);
+
+//     // ---- fetch IP-based location
+//     let locationInfo = {};
+//     try {
+//       const res = await fetch("https://ipapi.co/json/");
+//       const loc = await res.json();
+//       locationInfo = {
+//         location: `${loc.city}, ${loc.country_name}`,
+//         ipLocation: loc, // store full JSON for later
+//       };
+//     } catch (e) {
+//       console.warn("Location fetch failed:", e);
+//     }
+
+//     const base = {
+//       email: user.email ?? "",
+//       name: user.displayName ?? "",
+//       photoURL: user.photoURL ?? "",
+//       provider: user.providerData?.[0]?.providerId ?? "google",
+//       updatedAt: serverTimestamp(),
+//       lastLoginAt: serverTimestamp(),
+//       ...locationInfo, // 👈 add location fields
+//     };
+
+//     if (!snap.exists()) {
+//       await setDoc(ref, { ...base, createdAt: serverTimestamp() });
+//     } else {
+//       await updateDoc(ref, base);
+//     }
+//   };
+
+//   // -- after login: save user -> route to /admin or /user
+//   const handleRedirectAfterLogin = async (user) => {
+//     if (!user) return;
+//     await upsertUser(user); // <-- save to Firestore with location
+
+//     if (ADMIN_EMAILS.includes(user.email)) {
+//       router.push("/admin");
+//     } else {
+//       router.push("/user");
+//     }
+//   };
+
+//   const handleGoogleLogin = async () => {
+//     try {
+//       const provider = new GoogleAuthProvider();
+//       if (/Mobi|Android/i.test(navigator.userAgent)) {
+//         await signInWithRedirect(auth, provider);
+//       } else {
+//         const result = await signInWithPopup(auth, provider);
+//         await handleRedirectAfterLogin(result.user);
+//       }
+//     } catch (err) {
+//       console.error("Login error:", err);
+//       alert(err.message);
+//     }
+//   };
+
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (user) => {
+//       if (user) {
+//         handleRedirectAfterLogin(user);
+//       }
+//     });
+
+//     getRedirectResult(auth)
+//       .then((result) => {
+//         if (result?.user) {
+//           handleRedirectAfterLogin(result.user);
+//         }
+//       })
+//       .catch((err) => console.error("Redirect login error:", err));
+
+//     return () => unsub();
+//   }, [router]);
+
+//   return (
+//     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+//       {/* Animated background elements */}
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(15)].map((_, i) => (
+//           <div
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 80 + 20}px`,
+//               height: `${Math.random() * 80 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 6 + 4}s`,
+//               animationDelay: `${Math.random() * 2}s`,
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+
+//       {/* Login card with animation */}
+//       <div className="relative z-10 w-full max-w-md transform transition-all duration-700 animate-fadeIn">
+//         <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl">
+//           <div className="text-center mb-8">
+//             {/* Logo/Icon */}
+//             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+
+//             <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               BrainFuel
+//             </h1>
+//             <p className="text-gray-400">Sign in to access your dashboard</p>
+//           </div>
+
+//           {/* Google Sign-In Button */}
+//           <button
+//             onClick={handleGoogleLogin}
+//             className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group"
+//           >
+//             <div className="relative">
+//               <img
+//                 src="https://www.svgrepo.com/show/475656/google-color.svg"
+//                 alt="Google"
+//                 className="w-6 h-6"
+//               />
+//               <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+//             </div>
+//             <span className="font-medium">Continue with Google</span>
+//           </button>
+
+//           <div className="mt-8 text-center text-sm text-gray-500">
+//             By signing in, you agree to our Terms of Service and Privacy Policy
+//           </div>
+//           <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+//             ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
+//           </span>
+//         </div>
+//       </div>
+
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signInWithRedirect,
+//   getRedirectResult,
+//   onAuthStateChanged,
+// } from "firebase/auth";
+// import { auth, db } from "@/lib/firebase";
+// import { ADMIN_EMAILS } from "@/lib/config";
+// import {
+//   doc,
+//   getDoc,
+//   setDoc,
+//   updateDoc,
+//   serverTimestamp,
+// } from "firebase/firestore";
+
+// export default function LoginPage() {
+//   const router = useRouter();
+
+//   // -- Firestore helper: create or update /users/{uid}
+//   const upsertUser = async (user) => {
+//     if (!user) return;
+//     const ref = doc(db, "users", user.uid);
+//     const snap = await getDoc(ref);
+
+//     const base = {
+//       email: user.email ?? "",
+//       name: user.displayName ?? "",
+//       photoURL: user.photoURL ?? "",
+//       provider: user.providerData?.[0]?.providerId ?? "google",
+//       updatedAt: serverTimestamp(),
+//       lastLoginAt: serverTimestamp(),
+//     };
+
+//     if (!snap.exists()) {
+//       await setDoc(ref, { ...base, createdAt: serverTimestamp() });
+//     } else {
+//       await updateDoc(ref, base);
+//     }
+//   };
+
+//   // -- after login: save user -> route to /admin or /user
+//   const handleRedirectAfterLogin = async (user) => {
+//     if (!user) return;
+//     await upsertUser(user); // <-- IMPORTANT: save to Firestore
+
+//     if (ADMIN_EMAILS.includes(user.email)) {
+//       router.push("/admin");
+//     } else {
+//       router.push("/user");
+//     }
+//   };
+
+//   const handleGoogleLogin = async () => {
+//     try {
+//       const provider = new GoogleAuthProvider();
+//       if (/Mobi|Android/i.test(navigator.userAgent)) {
+//         await signInWithRedirect(auth, provider);
+//       } else {
+//         const result = await signInWithPopup(auth, provider);
+//         await handleRedirectAfterLogin(result.user); // save + redirect
+//       }
+//     } catch (err) {
+//       console.error("Login error:", err);
+//       alert(err.message);
+//     }
+//   };
+
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (user) => {
+//       if (user) {
+//         handleRedirectAfterLogin(user); // save + redirect for already signed-in
+//       }
+//     });
+
+//     getRedirectResult(auth)
+//       .then((result) => {
+//         if (result?.user) {
+//           handleRedirectAfterLogin(result.user); // save + redirect (mobile redirect flow)
+//         }
+//       })
+//       .catch((err) => console.error("Redirect login error:", err));
+
+//     return () => unsub();
+//   }, [router]);
+
+//   return (
+//     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+//       {/* Animated background elements */}
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(15)].map((_, i) => (
+//           <div
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 80 + 20}px`,
+//               height: `${Math.random() * 80 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 6 + 4}s`,
+//               animationDelay: `${Math.random() * 2}s`,
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+
+//       {/* Login card with animation */}
+//       <div className="relative z-10 w-full max-w-md transform transition-all duration-700 animate-fadeIn">
+//         <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl">
+//           <div className="text-center mb-8">
+//             {/* Logo/Icon */}
+//             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+
+//             <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               BrainFuel
+//             </h1>
+//             <p className="text-gray-400">Sign in to access your dashboard</p>
+//           </div>
+
+//           {/* Google Sign-In Button */}
+//           <button
+//             onClick={handleGoogleLogin}
+//             className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group"
+//           >
+//             <div className="relative">
+//               <img
+//                 src="https://www.svgrepo.com/show/475656/google-color.svg"
+//                 alt="Google"
+//                 className="w-6 h-6"
+//               />
+//               <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+//             </div>
+//             <span className="font-medium">Continue with Google</span>
+//           </button>
+
+//           <div className="mt-8 text-center text-sm text-gray-500">
+//             By signing in, you agree to our Terms of Service and Privacy Policy
+//           </div>
+//           <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+//             ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
+//           </span>
+//         </div>
+//       </div>
+
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signInWithRedirect,
+//   getRedirectResult,
+//   onAuthStateChanged,
+// } from "firebase/auth";
+// import { auth } from "@/lib/firebase";
+// import { ADMIN_EMAILS } from "@/lib/config";
+
+// export default function LoginPage() {
+//   const router = useRouter();
+  
+//   const handleRedirectAfterLogin = (user) => {
+//     if (!user) return;
+//     if (ADMIN_EMAILS.includes(user.email)) {
+//       router.push("/admin");
+//     } else {
+//       router.push("/user");
+//     }
+//   };
+
+//   const handleGoogleLogin = async () => {
+//     try {
+//       const provider = new GoogleAuthProvider();
+//       if (/Mobi|Android/i.test(navigator.userAgent)) {
+//         await signInWithRedirect(auth, provider);
+//       } else {
+//         const result = await signInWithPopup(auth, provider);
+//         handleRedirectAfterLogin(result.user);
+//       }
+//     } catch (err) {
+//       console.error("Login error:", err);
+//       alert(err.message);
+//     }
+//   };
+
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (user) => {
+//       if (user) {
+//         handleRedirectAfterLogin(user);
+//       }
+//     });
+    
+//     getRedirectResult(auth)
+//       .then((result) => {
+//         if (result?.user) {
+//           handleRedirectAfterLogin(result.user);
+//         }
+//       })
+//       .catch((err) => console.error("Redirect login error:", err));
+    
+//     return () => unsub();
+//   }, [router]);
+
+//   return (
+//     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+//       {/* Animated background elements */}
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(15)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 80 + 20}px`,
+//               height: `${Math.random() * 80 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 6 + 4}s`,
+//               animationDelay: `${Math.random() * 2}s`
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       {/* Login card with animation */}
+//       <div className="relative z-10 w-full max-w-md transform transition-all duration-700 animate-fadeIn">
+//         <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl">
+//           <div className="text-center mb-8">
+//             {/* Logo/Icon */}
+//             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+            
+//             <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               BrainFuel
+//             </h1>
+//             <p className="text-gray-400">Sign in to access your dashboard</p>
+//           </div>
+          
+//           {/* Google Sign-In Button */}
+//           <button
+//             onClick={handleGoogleLogin}
+//             className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group"
+//           >
+//             <div className="relative">
+//               <img
+//                 src="https://www.svgrepo.com/show/475656/google-color.svg"
+//                 alt="Google"
+//                 className="w-6 h-6"
+//               />
+//               <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+//             </div>
+//             <span className="font-medium">Continue with Google</span>
+//           </button>
+          
+//           <div className="mt-8 text-center text-sm text-gray-500">
+//             By signing in, you agree to our Terms of Service and Privacy Policy
+//           </div>
+//           <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+//             ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
+//           </span>
+//         </div>
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import {
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signInWithRedirect,
+//   getRedirectResult,
+//   onAuthStateChanged,
+// } from "firebase/auth";
+// import { auth } from "@/lib/firebase";
+// import { ADMIN_EMAILS } from "@/lib/config";
+
+// export default function LoginPage() {
+//   const router = useRouter();
+  
+//   const handleRedirectAfterLogin = (user) => {
+//     if (!user) return;
+//     if (ADMIN_EMAILS.includes(user.email)) {
+//       router.push("/admin");
+//     } else {
+//       router.push("/user");
+//     }
+//   };
+
+//   const handleGoogleLogin = async () => {
+//     try {
+//       const provider = new GoogleAuthProvider();
+//       if (/Mobi|Android/i.test(navigator.userAgent)) {
+//         await signInWithRedirect(auth, provider);
+//       } else {
+//         const result = await signInWithPopup(auth, provider);
+//         handleRedirectAfterLogin(result.user);
+//       }
+//     } catch (err) {
+//       console.error("Login error:", err);
+//       alert(err.message);
+//     }
+//   };
+
+//   useEffect(() => {
+//     const unsub = onAuthStateChanged(auth, (user) => {
+//       if (user) {
+//         handleRedirectAfterLogin(user);
+//       }
+//     });
+    
+//     getRedirectResult(auth)
+//       .then((result) => {
+//         if (result?.user) {
+//           handleRedirectAfterLogin(result.user);
+//         }
+//       })
+//       .catch((err) => console.error("Redirect login error:", err));
+    
+//     return () => unsub();
+//   }, [router]);
+
+//   return (
+//     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+//       {/* Animated background elements */}
+//       <div className="absolute inset-0 overflow-hidden">
+//         {[...Array(15)].map((_, i) => (
+//           <div 
+//             key={i}
+//             className="absolute rounded-full bg-blue-500 opacity-10 animate-pulse"
+//             style={{
+//               width: `${Math.random() * 80 + 20}px`,
+//               height: `${Math.random() * 80 + 20}px`,
+//               top: `${Math.random() * 100}%`,
+//               left: `${Math.random() * 100}%`,
+//               animationDuration: `${Math.random() * 6 + 4}s`,
+//               animationDelay: `${Math.random() * 2}s`
+//             }}
+//           ></div>
+//         ))}
+//       </div>
+      
+//       {/* Login card with animation */}
+//       <div className="relative z-10 w-full max-w-md transform transition-all duration-700 animate-fadeIn">
+//         <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl">
+//           <div className="text-center mb-8">
+//             {/* Logo/Icon */}
+//             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 mb-6 transform transition-transform duration-500 hover:scale-110">
+//               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 20 20" fill="currentColor">
+//                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+//               </svg>
+//             </div>
+            
+//             <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//               BrainFuel
+//             </h1>
+//             <p className="text-gray-400">Sign in to access your dashboard</p>
+//           </div>
+          
+//           {/* Google Sign-In Button */}
+//           <button
+//             onClick={handleGoogleLogin}
+//             className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-white text-gray-800 font-medium rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group"
+//           >
+//             <div className="relative">
+//               <img
+//                 src="https://www.svgrepo.com/show/475656/google-color.svg"
+//                 alt="Google"
+//                 className="w-6 h-6"
+//               />
+//               <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+//             </div>
+//             <span className="font-medium">Continue with Google</span>
+//           </button>
+          
+//           <div className="mt-8 text-center text-sm text-gray-500">
+//             By signing in, you agree to our Terms of Service and Privacy Policy
+//           </div>
+//           <span className="bg-black text-white px-4 py-2 rounded-lg font-bold shadow-md animate-pulse">
+//             ⚠️ Mobile user: Please enable "Desktop mode" in your browser before using this website. Very important!
+//           </span>
+//         </div>
+//       </div>
+      
+//       <style jsx global>{`
+//         @keyframes fadeIn {
+//           from { opacity: 0; transform: translateY(20px); }
+//           to { opacity: 1; transform: translateY(0); }
+//         }
+//         .animate-fadeIn {
+//           animation: fadeIn 0.8s ease-out forwards;
+//         }
+//       `}</style>
+//     </div>
+//   );
+// }
 
 
 
