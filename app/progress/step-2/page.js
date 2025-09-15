@@ -45,9 +45,31 @@ export default function ProgressPage2() {
     return () => clearInterval(timer);
   }, [router]);
 
+
+
+
+
+
+
   const handleContinue = () => {
-    router.push('/progress/step-3');
+    // router.push('/progress/step-3');
+
+    // https://brainfuel-poor-people.vercel.app/progress/step-3
+
+    window.open(`https://link-center.net/1385470/93h1BN5XqlrF`, "_blank", "noopener,noreferrer");
+
   };
+
+
+
+
+
+
+
+
+
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-4">

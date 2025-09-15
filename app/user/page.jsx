@@ -348,6 +348,7 @@ export default function UserPage() {
 
     router.push('/progress');
 
+
   };
 
       // Redirect to step 2 of the progress page
@@ -356,6 +357,11 @@ export default function UserPage() {
   const openLink = (url) => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
+  
+
+
+
+
   
   const getLinkName = (url) => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {

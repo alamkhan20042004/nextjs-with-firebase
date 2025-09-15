@@ -49,7 +49,7 @@ function ProgressContent() {
     setTimeout(() => {
       // Redirect to step-2 without passing data in URL
       // router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
-      window.open(`https://direct-link.net/1385470/tGfde01NMHpe`, "_blank", "noopener,noreferrer");
+      window.open(`https://direct-link.net/1385470/z5z0uNQj8ImD`, "_blank", "noopener,noreferrer");
     }, 1500);
   };
 
