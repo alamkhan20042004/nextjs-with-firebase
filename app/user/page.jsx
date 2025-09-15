@@ -346,6 +346,8 @@ export default function UserPage() {
       
       // Redirect to progress page in the same tab
       window.location.href = `https://brainfuel-poor-people.vercel.app/progress?data=${encodedUrl}`;
+      // window.location.href = `/progress?data=${encodedUrl}`;
+
     } catch (error) {
       console.error("Error:", error);
       // Fallback: open the URL directly
