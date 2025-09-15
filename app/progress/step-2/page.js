@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function ProgressPage2() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(10); // 10 seconds countdown
+//   const [countdown, setCountdown] = useState(10); // 10 seconds countdown
 
   useEffect(() => {
     // Check if we have the tempDownloadUrl in localStorage
@@ -30,17 +30,17 @@ export default function ProgressPage2() {
     }
     
     // Start countdown
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          // Auto redirect to step-3 after countdown
-          router.push('/progress/step-3');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // const timer = setInterval(() => {
+    //   setCountdown(prev => {
+    //     if (prev <= 1) {
+    //       clearInterval(timer);
+    //       // Auto redirect to step-3 after countdown
+    //       router.push('/progress/step-3');
+    //       return 0;
+    //     }
+    //     return prev - 1;
+    //   });
+    // }, 1000);
     
     return () => clearInterval(timer);
   }, [router]);
@@ -121,20 +121,20 @@ export default function ProgressPage2() {
         </div>
         
         <div className="text-center mb-10">
-          <h3 className="text-xl font-semibold mb-4">Verify with Linkvertise</h3>
+          {/* <h3 className="text-xl font-semibold mb-4">Verify with Linkvertise</h3> */}
           <p className="text-gray-400 mb-6">
             Please complete the verification below to access your content
           </p>
           
           {/* Here you would integrate the Linkvertise widget */}
           <div className="bg-gray-700 rounded-lg p-4 mb-6">
-            <p className="text-gray-300">Linkvertise verification would go here</p>
+            {/* <p className="text-gray-300">Linkvertise verification would go here</p> */}
             {/* Example: <iframe src="your-linkvertise-url" ... /> */}
           </div>
           
-          <p className="text-gray-400 text-sm mb-4">
+          {/* <p className="text-gray-400 text-sm mb-4">
             Redirecting in {countdown} seconds...
-          </p>
+          </p> */}
         </div>
         
         <div className="flex justify-center">
@@ -144,6 +144,8 @@ export default function ProgressPage2() {
           >
             Continue to Step 3
           </button>
+
+          
         </div>
       </div>
     </div>

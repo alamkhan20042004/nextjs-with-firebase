@@ -117,10 +117,10 @@ export default function ProgressPage3() {
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin"></div>
           </div>
-          <h3 className="text-xl font-semibold mb-2">Processing Your Request</h3>
+          {/* <h3 className="text-xl font-semibold mb-2">Processing Your Request</h3>
           <p className="text-gray-400">
             Please wait while we process your request... {countdown}
-          </p>
+          </p> */}
         </div>
         
         <div className="flex justify-center">

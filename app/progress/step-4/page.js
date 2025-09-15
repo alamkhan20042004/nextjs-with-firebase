@@ -118,9 +118,9 @@ function ProgressPage4Content() {
             <div className="w-16 h-16 border-4 border-purple-500 rounded-full animate-pulse"></div>
           </div>
           <h3 className="text-xl font-semibold mb-2">Finalizing Your Download</h3>
-          <p className="text-gray-400">
+          {/* <p className="text-gray-400">
             Just a few more seconds... {countdown}
-          </p>
+          </p> */}
         </div>
         
         <div className="flex justify-center">
