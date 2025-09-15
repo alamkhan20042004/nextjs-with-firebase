@@ -30,14 +30,46 @@ function ProgressContent() {
     }
   }, [router]);
 
+
+
+
+
+
+
+
+
+
+
+
+
+
   const handleContinue = () => {
     setLoading(true);
     // Button click animation ke baad thoda delay
     setTimeout(() => {
       // Redirect to step-2 without passing data in URL
-      router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
+      // router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
+      window.open(`https://direct-link.net/1385470/tGfde01NMHpe`, "_blank", "noopener,noreferrer");
     }, 1500);
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-4">
