@@ -35,7 +35,7 @@ function ProgressContent() {
     // Button click animation ke baad thoda delay
     setTimeout(() => {
       // Redirect to step-2 without passing data in URL
-      router.push('/progress/step-2');
+      router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
     }, 1500);
   };
 
