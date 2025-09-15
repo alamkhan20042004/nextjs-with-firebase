@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function ProgressPage3() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(8); // 8 seconds countdown
+//   const [countdown, setCountdown] = useState(8); // 8 seconds countdown
 
   useEffect(() => {
     // Check if we have the tempDownloadUrl in localStorage
@@ -29,16 +29,16 @@ export default function ProgressPage3() {
       return;
     }
 
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.push('/progress/step-4');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // const timer = setInterval(() => {
+    //   setCountdown(prev => {
+    //     if (prev <= 1) {
+    //       clearInterval(timer);
+    //       router.push('/progress/step-4');
+    //       return 0;
+    //     }
+    //     return prev - 1;
+    //   });
+    // }, 1000);
 
     return () => clearInterval(timer);
   }, [router]);

@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense } from "react";
 
 function ProgressPage4Content() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(5); // 5 seconds countdown
+//   const [countdown, setCountdown] = useState(5); // 5 seconds countdown
 
   useEffect(() => {
     // Check if we have the tempDownloadUrl in localStorage
@@ -30,16 +30,16 @@ function ProgressPage4Content() {
       return;
     }
 
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.push('/progress/step-5');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // const timer = setInterval(() => {
+    //   setCountdown(prev => {
+    //     if (prev <= 1) {
+    //       clearInterval(timer);
+    //       router.push('/progress/step-5');
+    //       return 0;
+    //     }
+    //     return prev - 1;
+    //   });
+    // }, 1000);
 
     return () => clearInterval(timer);
   }, [router]);
@@ -143,6 +143,11 @@ export default function ProgressPage4() {
     </Suspense>
   );
 }
+
+
+
+
+
 
 
 
