@@ -662,26 +662,19 @@ export default function UserPage() {
                                               )}
                                             </div>
 
-                                      {/* inline script */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            atOptions = {
-              'key' : 'ada79b70fb0f2085866b0aa4b36316f6',
-              'format' : 'iframe',
-              'height' : 90,
-              'width' : 728,
-              'params' : {}
-            };
-          `,
-        }}
-      />
 
-      {/* external script */}
-      <script 
-        type="text/javascript" 
-        src="//www.highperformanceformat.com/ada79b70fb0f2085866b0aa4b36316f6/invoke.js">
-      </script>
+
+
+
+
+
+
+
+
+
+
+
+
 
                                           </div>
                                           
