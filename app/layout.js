@@ -20,6 +20,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <head>
+        <script type='text/javascript' src='//pl27671829.revenuecpmgate.com/21/ce/1f/21ce1f97f252175387315b7df020a127.js'></script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
       >

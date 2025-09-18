@@ -661,7 +661,31 @@ export default function UserPage() {
                                                 </span>
                                               )}
                                             </div>
+
+                                      {/* inline script */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            atOptions = {
+              'key' : 'ada79b70fb0f2085866b0aa4b36316f6',
+              'format' : 'iframe',
+              'height' : 90,
+              'width' : 728,
+              'params' : {}
+            };
+          `,
+        }}
+      />
+
+      {/* external script */}
+      <script 
+        type="text/javascript" 
+        src="//www.highperformanceformat.com/ada79b70fb0f2085866b0aa4b36316f6/invoke.js">
+      </script>
+
                                           </div>
+                                          
+
                                         );
                                       } else {
                                         return (
@@ -670,6 +694,8 @@ export default function UserPage() {
                                           </div>
                                         );
                                       }
+
+
                                     })}
                                   </div>
                                 </div>
@@ -764,7 +790,7 @@ export default function UserPage() {
 
 
 
-      <script type='text/javascript' src='//pl27671829.revenuecpmgate.com/21/ce/1f/21ce1f97f252175387315b7df020a127.js'></script>
+      {/* <script type='text/javascript' src='//pl27671829.revenuecpmgate.com/21/ce/1f/21ce1f97f252175387315b7df020a127.js'></script> */}
 
 
 
@@ -779,7 +805,7 @@ export default function UserPage() {
 
 
 
-      
+
     </div>
   );
 }
