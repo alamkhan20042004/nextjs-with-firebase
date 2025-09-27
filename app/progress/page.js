@@ -43,17 +43,33 @@ function ProgressContent() {
 
 
 
+  // const handleContinue = () => {
+  //   setLoading(true);
+  //   // Button click animation ke baad thoda delay
+  //   setTimeout(() => {
+  //     // Redirect to step-2 without passing data in URL
+  //     // router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
+  //     router.push('/step-2');
+  //     // window.open(`https://direct-link.net/1385470/z5z0uNQj8ImD`, "_blank", "noopener,noreferrer");
+  //   }, 1500);
+  // };
+
+
   const handleContinue = () => {
     setLoading(true);
     // Button click animation ke baad thoda delay
     setTimeout(() => {
       // Redirect to step-2 without passing data in URL
-      // router.push('https://brainfuel-poor-people.vercel.app/progress/step-2');
-      window.open(`https://direct-link.net/1385470/z5z0uNQj8ImD`, "_blank", "noopener,noreferrer");
+      // router.push("/progress/step-2");
+    window.open('/progress/step-2', "_blank", "noopener,noreferrer");
+
+
+
     }, 1500);
   };
 
 
+  // router.push('/step-2');
 
 
 

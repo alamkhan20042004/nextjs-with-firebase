@@ -56,7 +56,9 @@ export default function ProgressPage2() {
 
     // https://brainfuel-poor-people.vercel.app/progress/step-3
 
-    window.open(`https://link-center.net/1385470/93h1BN5XqlrF`, "_blank", "noopener,noreferrer");
+    // window.open(`https://link-center.net/1385470/93h1BN5XqlrF`, "_blank", "noopener,noreferrer");
+    window.open('/progress/step-3', "_blank", "noopener,noreferrer");
+
 
   };
 
@@ -145,9 +147,23 @@ export default function ProgressPage2() {
             Continue to Step 3
           </button>
 
-          
+          {/* AD IFRAME INSERTED HERE */}
+          <iframe
+            scrolling="no"
+            src="https://neon.today/context/get/159410/40488/0/468/60"
+            style={{ width: "468px", height: "60px", padding: 0, border: "1px dotted grey" }}
+            frameBorder="0"
+          ></iframe>
         </div>
       </div>
+
+            {/* AD IFRAME INSERTED HERE */}
+        <iframe
+          scrolling="no"
+          src="https://neon.today/context/get/159410/40488/0/468/60"
+          style={{ width: "468px", height: "60px", padding: 0, border: "1px dotted grey" }}
+          frameBorder="0"
+        ></iframe>
     </div>
   );
 }

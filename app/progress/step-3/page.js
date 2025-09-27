@@ -53,7 +53,9 @@ export default function ProgressPage3() {
     // router.push('/progress/step-4');
 
     // https://brainfuel-poor-people.vercel.app/progress/step-4
-    window.open(`https://link-target.net/1385470/KKloDKaPWMhp`, "_blank", "noopener,noreferrer");
+    // window.open(`https://link-target.net/1385470/KKloDKaPWMhp`, "_blank", "noopener,noreferrer");
+    window.open('/progress/step-4', "_blank", "noopener,noreferrer");
+
 
   };
 
