@@ -39,9 +39,9 @@ function ProgressContent() {
   const handleAdButtonClick = (buttonNumber) => {
     // Open Adsterra link in new tab
     const adLinks = {
-      1: "https://www.revenuecpmgate.com/ux5skvyg?key=83356a761aa7ce60986ccf836290e715", // Replace with your Adsterra link 1
-      2: "https://www.revenuecpmgate.com/ux5skvyg?key=83356a761aa7ce60986ccf836290e715", // Replace with your Adsterra link 2
-      3: "https://www.revenuecpmgate.com/ux5skvyg?key=83356a761aa7ce60986ccf836290e715"  // Replace with your Adsterra link 3
+      1: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Adsterra link 1
+      2: "https://hotbzepefa.cc/tds?id=1483698232&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Adsterra link 2
+      3: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4"  // Replace with your Adsterra link 3
     };
     
     window.open(adLinks[buttonNumber], "_blank", "noopener,noreferrer");
