@@ -8,6 +8,7 @@ export default function ProgressPage3() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(12);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const [buttonClicked, setButtonClicked] = useState(false);
 
   useEffect(() => {
     // Check if we have the tempDownloadUrl in localStorage
@@ -48,8 +49,17 @@ export default function ProgressPage3() {
   }, [router]);
 
   const handleContinue = () => {
+    if (!isButtonEnabled || loading) return;
+    
+    // Set button clicked state for visual feedback
+    setButtonClicked(true);
     setLoading(true);
+    
+    // Button click animation ke baad thoda delay
     setTimeout(() => {
+      // Reset button state for future clicks
+      setButtonClicked(false);
+      setLoading(false);
       window.open('/progress/step-4', "_blank", "noopener,noreferrer");
     }, 1500);
   };
@@ -199,18 +209,28 @@ export default function ProgressPage3() {
         {/* Single Continue Button */}
         <div className="flex justify-center">
           <motion.button
-            whileTap={{ scale: isButtonEnabled ? 0.9 : 1 }}
+            whileTap={{ 
+              scale: isButtonEnabled && !loading ? 0.85 : 1 
+            }}
             whileHover={{ 
-              scale: isButtonEnabled ? 1.05 : 1,
-              boxShadow: isButtonEnabled ? "0 20px 40px rgba(59, 130, 246, 0.3)" : "none"
+              scale: isButtonEnabled && !loading ? 1.05 : 1,
+              boxShadow: isButtonEnabled && !loading ? "0 20px 40px rgba(59, 130, 246, 0.3)" : "none"
+            }}
+            animate={{
+              scale: buttonClicked ? 0.95 : 1,
+              backgroundColor: buttonClicked 
+                ? "rgba(59, 130, 246, 0.8)" 
+                : isButtonEnabled && !loading
+                  ? "linear-gradient(to right, #2563eb, #7c3aed)"
+                  : "linear-gradient(to right, #4b5563, #374151)"
             }}
             onClick={handleContinue}
             disabled={!isButtonEnabled || loading}
-            className={`px-8 py-4 font-bold rounded-full flex items-center justify-center gap-3 transform transition-all duration-300 ${
+            className={`px-8 py-4 font-bold rounded-full flex items-center justify-center gap-3 transform transition-all duration-200 ${
               isButtonEnabled && !loading
-                ? "bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg cursor-pointer"
+                ? "bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg cursor-pointer hover:shadow-blue-500/30"
                 : "bg-gradient-to-r from-gray-600 to-gray-700 cursor-not-allowed"
-            }`}
+            } ${buttonClicked ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}`}
           >
             {loading ? (
               <>
@@ -243,7 +263,7 @@ export default function ProgressPage3() {
                     Continue to Step 4
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 ml-1"
+                      className="h-5 w-5 ml-1 transition-transform duration-200"
                       viewBox="0 0 20 20"
                       fill="currentColor"
                     >
@@ -269,16 +289,298 @@ export default function ProgressPage3() {
           transition={{ delay: 1 }}
           className="text-center mt-6"
         >
-          {/* <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 text-sm">
             We're preparing your content for the next step
-          </p> */}
-          <p>{"We're preparing your content for the next step"}</p>
-
+          </p>
         </motion.div>
       </div>
     </div>
   );
 }
+
+
+
+// "use client";
+// import { useRouter } from "next/navigation";
+// import { useEffect, useState } from "react";
+// import { motion } from "framer-motion";
+
+// export default function ProgressPage3() {
+//   const router = useRouter();
+//   const [loading, setLoading] = useState(false);
+//   const [countdown, setCountdown] = useState(12);
+//   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+
+//   useEffect(() => {
+//     // Check if we have the tempDownloadUrl in localStorage
+//     const tempData = localStorage.getItem('tempDownloadUrl');
+//     if (!tempData) {
+//       router.push('/user');
+//       return;
+//     }
+    
+//     // Parse the data to check expiration
+//     try {
+//       const data = JSON.parse(tempData);
+//       const now = Date.now();
+//       if (now - data.timestamp > 30 * 60 * 1000) { // 30 minutes
+//         localStorage.removeItem('tempDownloadUrl');
+//         router.push('/user');
+//         return;
+//       }
+//     } catch (error) {
+//       console.error("Error parsing URL data:", error);
+//       router.push('/user');
+//       return;
+//     }
+
+//     // Start countdown timer
+//     const timer = setInterval(() => {
+//       setCountdown(prev => {
+//         if (prev <= 1) {
+//           clearInterval(timer);
+//           setIsButtonEnabled(true);
+//           return 0;
+//         }
+//         return prev - 1;
+//       });
+//     }, 1000);
+
+//     return () => clearInterval(timer);
+//   }, [router]);
+
+//   const handleContinue = () => {
+//     setLoading(true);
+//     setTimeout(() => {
+//       window.open('/progress/step-4', "_blank", "noopener,noreferrer");
+//     }, 1500);
+//   };
+
+//   return (
+//     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-4">
+//       <div className="w-full max-w-2xl bg-gray-800/30 backdrop-blur-lg rounded-2xl border border-gray-700 p-8 shadow-2xl">
+//         <div className="text-center mb-10">
+//           <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+//             Processing Your Request
+//           </h1>
+//           <p className="text-gray-400">Please wait while we process your request (Step 3 of 5)</p>
+//         </div>
+
+//         <div className="mb-12">
+//           <div className="flex items-center justify-between mb-8">
+//             {[1, 2, 3, 4, 5].map((step, index) => (
+//               <div key={index} className="flex flex-col items-center relative">
+//                 <div
+//                   className={`w-12 h-12 rounded-full flex items-center justify-center z-10 transition-all duration-500 ${
+//                     step <= 3
+//                       ? "bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg shadow-blue-500/30"
+//                       : "bg-gray-700"
+//                   }`}
+//                 >
+//                   {step <= 3 ? (
+//                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+//                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+//                     </svg>
+//                   ) : (
+//                     <span className="text-gray-400">{step}</span>
+//                   )}
+//                 </div>
+//                 <div className="mt-3 text-center">
+//                   <div className={`font-medium ${step <= 3 ? "text-white" : "text-gray-400"}`}>
+//                     Step {step}
+//                   </div>
+//                 </div>
+//                 {index < 4 && (
+//                   <div className="absolute top-6 left-12 w-[calc(100%+24px)] h-1 bg-gray-700 -z-10">
+//                     <div className={`h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700 ${
+//                       step < 3 ? "w-full" : 
+//                       step === 3 ? "w-2/4" : 
+//                       step === 4 ? "w-3/4" : "w-0"
+//                     }`}></div>
+//                   </div>
+//                 )}
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+
+//         <div className="text-center mb-10">
+//           <h3 className="text-xl font-semibold mb-2">Processing</h3>
+//           <p className="text-gray-400 mb-6">
+//             Please wait while we process your request
+//           </p>
+//         </div>
+        
+//         {/* Countdown Timer */}
+//         <div className="text-center mb-8">
+//           <motion.div
+//             initial={{ scale: 0.8, opacity: 0 }}
+//             animate={{ scale: 1, opacity: 1 }}
+//             transition={{ duration: 0.5 }}
+//             className="mb-6"
+//           >
+//             <div className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent mb-4">
+//               {countdown}
+//             </div>
+//             <p className="text-gray-400 text-sm">
+//               seconds remaining
+//             </p>
+//           </motion.div>
+          
+//           {/* Progress Circle */}
+//           <div className="flex justify-center mb-6">
+//             <div className="relative w-24 h-24">
+//               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+//                 {/* Background circle */}
+//                 <circle
+//                   cx="50"
+//                   cy="50"
+//                   r="40"
+//                   stroke="rgba(75, 85, 99, 0.3)"
+//                   strokeWidth="8"
+//                   fill="none"
+//                 />
+//                 {/* Progress circle */}
+//                 <motion.circle
+//                   cx="50"
+//                   cy="50"
+//                   r="40"
+//                   stroke="url(#gradient)"
+//                   strokeWidth="8"
+//                   fill="none"
+//                   strokeLinecap="round"
+//                   initial={{ strokeDasharray: "251.2", strokeDashoffset: "251.2" }}
+//                   animate={{ strokeDashoffset: 251.2 * (1 - (12 - countdown) / 12) }}
+//                   transition={{ duration: 1 }}
+//                 />
+//                 <defs>
+//                   <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+//                     <stop offset="0%" stopColor="#3b82f6" />
+//                     <stop offset="100%" stopColor="#8b5cf6" />
+//                   </linearGradient>
+//                 </defs>
+//               </svg>
+//               <div className="absolute inset-0 flex items-center justify-center">
+//                 <span className="text-white font-bold text-lg">
+//                   {countdown}s
+//                 </span>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Status Message */}
+//         <motion.div
+//           initial={{ opacity: 0, y: 20 }}
+//           animate={{ opacity: 1, y: 0 }}
+//           transition={{ delay: 0.5 }}
+//           className="text-center mb-8"
+//         >
+//           {!isButtonEnabled ? (
+//             <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+//               <div className="flex items-center justify-center gap-3">
+//                 <svg className="animate-spin h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24">
+//                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+//                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
+//                 </svg>
+//                 <span className="text-blue-300">Processing your request...</span>
+//               </div>
+//             </div>
+//           ) : (
+//             <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
+//               <div className="flex items-center justify-center gap-3">
+//                 <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+//                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+//                 </svg>
+//                 <span className="text-green-300">Processing complete! You may continue.</span>
+//               </div>
+//             </div>
+//           )}
+//         </motion.div>
+        
+//         {/* Single Continue Button */}
+//         <div className="flex justify-center">
+//           <motion.button
+//             whileTap={{ scale: isButtonEnabled ? 0.9 : 1 }}
+//             whileHover={{ 
+//               scale: isButtonEnabled ? 1.05 : 1,
+//               boxShadow: isButtonEnabled ? "0 20px 40px rgba(59, 130, 246, 0.3)" : "none"
+//             }}
+//             onClick={handleContinue}
+//             disabled={!isButtonEnabled || loading}
+//             className={`px-8 py-4 font-bold rounded-full flex items-center justify-center gap-3 transform transition-all duration-300 ${
+//               isButtonEnabled && !loading
+//                 ? "bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg cursor-pointer"
+//                 : "bg-gradient-to-r from-gray-600 to-gray-700 cursor-not-allowed"
+//             }`}
+//           >
+//             {loading ? (
+//               <>
+//                 <svg
+//                   className="animate-spin h-5 w-5 text-white"
+//                   xmlns="http://www.w3.org/2000/svg"
+//                   fill="none"
+//                   viewBox="0 0 24 24"
+//                 >
+//                   <circle
+//                     className="opacity-25"
+//                     cx="12"
+//                     cy="12"
+//                     r="10"
+//                     stroke="currentColor"
+//                     strokeWidth="4"
+//                   ></circle>
+//                   <path
+//                     className="opacity-75"
+//                     fill="currentColor"
+//                     d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"
+//                   ></path>
+//                 </svg>
+//                 Processing...
+//               </>
+//             ) : (
+//               <>
+//                 {isButtonEnabled ? (
+//                   <>
+//                     Continue to Step 4
+//                     <svg
+//                       xmlns="http://www.w3.org/2000/svg"
+//                       className="h-5 w-5 ml-1"
+//                       viewBox="0 0 20 20"
+//                       fill="currentColor"
+//                     >
+//                       <path
+//                         fillRule="evenodd"
+//                         d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"
+//                         clipRule="evenodd"
+//                       />
+//                     </svg>
+//                   </>
+//                 ) : (
+//                   `Please wait ${countdown}s`
+//                 )}
+//               </>
+//             )}
+//           </motion.button>
+//         </div>
+
+//         {/* Additional Info */}
+//         <motion.div
+//           initial={{ opacity: 0 }}
+//           animate={{ opacity: 1 }}
+//           transition={{ delay: 1 }}
+//           className="text-center mt-6"
+//         >
+//           {/* <p className="text-gray-500 text-sm">
+//             We're preparing your content for the next step
+//           </p> */}
+//           <p>{"We're preparing your content for the next step"}</p>
+
+//         </motion.div>
+//       </div>
+//     </div>
+//   );
+// }
 
 
 
