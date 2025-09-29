@@ -39,9 +39,9 @@ function ProgressContent() {
   const handleAdButtonClick = (buttonNumber) => {
     // Open Adsterra link in new tab
     const adLinks = {
-      1: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Adsterra link 1
-      2: "https://hotbzepefa.cc/tds?id=1483698232&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Adsterra link 2
-      3: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4"  // Replace with your Adsterra link 3
+      1: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Partnerhouse link 1
+      2: "https://hotbzepefa.cc/tds?id=1483698232&p1=sub1&p2=sub2&p3=sub3&p4=sub4", // Replace with your Partnerhouse link 2
+      3: "https://hotbzepefa.cc/tds?id=1483675431&p1=sub1&p2=sub2&p3=sub3&p4=sub4"  // Replace with your Partnerhouse link 3
     };
     
     window.open(adLinks[buttonNumber], "_blank", "noopener,noreferrer");
@@ -132,7 +132,7 @@ function ProgressContent() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
                 </svg>
-                Click Ad 1 (Required)
+                Click (Required-1)
               </>
             ) : (
               "Ad 1 - Click to Enable Next Step"
@@ -156,7 +156,9 @@ function ProgressContent() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
                 </svg>
-                Click Ad 2 (Required)
+                {/* Click Ad 2 (Required) */}
+                Click (Required-2)
+
               </>
             ) : (
               "Ad 2 - Complete Step 1 First"
@@ -180,7 +182,8 @@ function ProgressContent() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
                 </svg>
-                Click Ad 3 (Required)
+                {/* Click Ad 3 (Required) */}
+                Click (Required-3)
               </>
             ) : (
               "Ad 3 - Complete Step 2 First"
