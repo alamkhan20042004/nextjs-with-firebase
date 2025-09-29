@@ -288,9 +288,8 @@ function ProgressPage4Content() {
           transition={{ delay: 1 }}
           className="text-center mt-6"
         >
-          <p className="text-gray-500 text-sm">
-            Your download will be available in the final step
-          </p>
+<p>{"We're preparing your content for the next step"}</p>
+
         </motion.div>
       </div>
     </div>
