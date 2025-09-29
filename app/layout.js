@@ -12,9 +12,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ✅ METADATA (without viewport)
 export const metadata = {
   title: "BrainFuel App",
   description: "Stylish black & white Next.js App",
+};
+
+// ✅ SEPARATE VIEWPORT EXPORT (Next.js 15 requirement)
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({ children }) {
@@ -41,9 +50,6 @@ export default function RootLayout({ children }) {
         {/* ========================================== */}
 
         {/* Main content wrapper */}
-        {/* <main className="min-h-screen flex flex-col items-center justify-start p-4">
-          {children}
-        </main> */}
         <main className="min-h-screen w-full flex flex-col p-4">
           {children}
         </main>
@@ -56,6 +62,78 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+// this is correct code----------------------------------------------------------
+
+// import { Geist, Geist_Mono } from "next/font/google";
+// import "./globals.css";
+// import Header from "@/components/Header/page";
+
+// const geistSans = Geist({
+//   variable: "--font-geist-sans",
+//   subsets: ["latin"],
+// });
+
+// const geistMono = Geist_Mono({
+//   variable: "--font-geist-mono",
+//   subsets: ["latin"],
+// });
+
+// export const metadata = {
+//   title: "BrainFuel App",
+//   description: "Stylish black & white Next.js App",
+// };
+
+// export default function RootLayout({ children }) {
+//   return (
+//     <html lang="en">
+//       <head>
+        
+//   {/* ================= META TAGS ================= */}
+  
+//   <script type="text/javascript" src="https://hotbmifogi.today/process.js?id=1483243874&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
+  
+
+//         <meta confirm="partners-house-189923"/>
+//   {/* ========================================== */}
+
+
+
+//       </head>
+//       <body
+//         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
+//       >
+//         {/* ================= HEADER ================= */}
+//         <Header className="bg-black text-white shadow-md sticky top-0 z-50" />
+//         {/* ========================================== */}
+
+//         {/* Main content wrapper */}
+//         {/* <main className="min-h-screen flex flex-col items-center justify-start p-4">
+//           {children}
+//         </main> */}
+//         <main className="min-h-screen w-full flex flex-col p-4">
+//           {children}
+//         </main>
+
+//         {/* Optional: Footer */}
+//         <footer className="w-full bg-black text-white text-center py-4 mt-auto">
+//           <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
+//         </footer>
+//       </body>
+//     </html>
+//   );
+// }
 
 
 
