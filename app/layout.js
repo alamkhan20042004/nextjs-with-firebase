@@ -25,6 +25,7 @@ export default function RootLayout({ children }) {
   {/* ================= META TAGS ================= */}
   
   <script type="text/javascript" src="https://hotbmifogi.today/process.js?id=1483243874&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
+  
 
         <meta confirm="partners-house-189923"/>
   {/* ========================================== */}
