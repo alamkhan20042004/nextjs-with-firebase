@@ -269,9 +269,11 @@ export default function ProgressPage3() {
           transition={{ delay: 1 }}
           className="text-center mt-6"
         >
-          <p className="text-gray-500 text-sm">
+          {/* <p className="text-gray-500 text-sm">
             We're preparing your content for the next step
-          </p>
+          </p> */}
+          <p>{"We're preparing your content for the next step"}</p>
+
         </motion.div>
       </div>
     </div>
