@@ -34,9 +34,12 @@ export default function RootLayout({ children }) {
   {/* ================= META TAGS ================= */}
   
   
-  <script type="text/javascript" src="https://hotbhaluca.com/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>  
+  {/* <script type="text/javascript" src="https://hotbhaluca.com/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>  
 
-        <meta confirm="partners-house-189923"/>
+        <meta confirm="partners-house-189923"/> */}
+
+
+
   {/* ========================================== */}
 
 
@@ -59,6 +62,11 @@ export default function RootLayout({ children }) {
           <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
         </footer>
       </body>
+
+
+
+        <script src="//super-traf.ru/earn/partner/get?id=29326&type=6&code=1759257488" type="text/javascript"></script>
+
     </html>
   );
 }
