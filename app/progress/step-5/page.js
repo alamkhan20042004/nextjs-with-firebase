@@ -282,9 +282,11 @@ function ProgressPage5Content() {
           transition={{ delay: 1 }}
           className="text-center mt-6"
         >
-          <p className="text-gray-500 text-sm">
-            Your content will open in a new tab for download
-          </p>
+<p>{"We're preparing your content for the next step"}</p>
+
+
+
+
         </motion.div>
       </div>
     </div>
