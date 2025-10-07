@@ -30,6 +30,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        <script src="https://richinfo.co/richpartners/pops/js/richads-pu-ob.js" data-pubid="988996" data-siteid="373350" async data-cfasync="false"></script>
         
   {/* ================= META TAGS ================= */}
   
