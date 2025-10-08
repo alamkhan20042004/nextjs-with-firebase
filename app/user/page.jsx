@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
@@ -140,39 +140,42 @@ export default function UserPage() {
     }
   }, [user]);
   
-  // ✅ Fetch content ONLY once (with caching)
-  useEffect(() => {
-    const fetchContent = async () => {
-      // ✅ Check cache first
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchContent = useCallback(async (force = false) => {
+    if (!user) return;
+    try {
       const cachedContent = localStorage.getItem('cachedContent');
       const cachedTimestamp = localStorage.getItem('cachedContentTimestamp');
-      
-      // If cache exists and is less than 1 hour old, use it
-      if (cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000)) {
+      const cacheValid = cachedContent && cachedTimestamp && (Date.now() - cachedTimestamp < 3600000);
+
+      if (cacheValid && !force && content.length === 0) {
+        // Show cached immediately for fast paint
         setContent(JSON.parse(cachedContent));
-        return;
+      } else if (cacheValid && !force) {
+        // Keep existing content; background refresh below
       }
-      
-      try {
-        const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        const contentData = [];
-        querySnapshot.forEach((doc) => {
-          contentData.push({ id: doc.id, ...doc.data() });
-        });
-        
-        setContent(contentData);
-        // ✅ Cache the content
-        localStorage.setItem('cachedContent', JSON.stringify(contentData));
-        localStorage.setItem('cachedContentTimestamp', Date.now());
-      } catch (err) {
-        console.error("Error fetching content:", err);
-        setError("Failed to load content");
-      }
-    };
-    
-    if (user) fetchContent();
-  }, [user]);
+
+      setIsRefreshing(true);
+      const q = query(collection(db, "adminContent"), orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const fresh = [];
+      querySnapshot.forEach((d) => fresh.push({ id: d.id, ...d.data() }));
+      setContent(fresh);
+      localStorage.setItem('cachedContent', JSON.stringify(fresh));
+      localStorage.setItem('cachedContentTimestamp', Date.now());
+    } catch (err) {
+      console.error("Error fetching content:", err);
+      if (content.length === 0) setError("Failed to load content");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [user, content.length]);
+
+  // Initial + background refresh
+  useEffect(() => {
+    if (user) fetchContent(false);
+  }, [user, fetchContent]);
   
   // ✅ Fetch Gumroad link from Firestore
   useEffect(() => {
@@ -453,12 +456,27 @@ export default function UserPage() {
               Welcome, {user?.email?.split('@')[0]}!
             </h1>
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-3 sm:px-8 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group w-full sm:w-auto"
-          >
-            Logout
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => fetchContent(true)}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white font-semibold rounded-full flex items-center justify-center gap-2 hover:from-blue-700 hover:to-purple-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isRefreshing}
+            >
+              {isRefreshing && (
+                <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+              )}
+              {isRefreshing ? 'Refreshing...' : 'Refresh Courses'}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 sm:px-8 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center group"
+            >
+              Logout
+            </button>
+          </div>
         </div>
         
         {error && (
@@ -516,48 +534,8 @@ export default function UserPage() {
             {/* Current Course */}
             <div key={courses[currentPage][0]} className="course-section">
               <div className="text-center mb-8 relative">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500 flex flex-col items-center justify-center gap-3">
-                  <span>{courses[currentPage][0]}</span>
-                  {/* Course Status Badge */}
-                  {(() => {
-                    const parts = courses[currentPage][1];
-                    // If every item has visibility === 'hide' => Completed
-                    const allHidden = parts.every(p => (p.visibility || '').toLowerCase() === 'hide');
-                    // If any item has visibility === 'show' => Uploading (in-progress)
-                    const anyShow = parts.some(p => (p.visibility || '').toLowerCase() === 'show');
-                    if (allHidden) {
-                      return (
-                        <div className="group relative">
-                          <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full bg-gradient-to-r from-emerald-600 to-green-700 shadow-lg shadow-emerald-500/30 border border-emerald-400/40">
-                            <svg xmlns='http://www.w3.org/2000/svg' className='h-5 w-5 text-white animate-pulse' viewBox='0 0 20 20' fill='currentColor'>
-                              <path fillRule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' clipRule='evenodd' />
-                            </svg>
-                            Completed
-                          </span>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-xs px-3 py-2 text-xs rounded-md bg-gray-900/90 border border-emerald-500/30 text-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity">
-                            All parts marked hidden. This course upload is finalized.
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (anyShow) {
-                      return (
-                        <div className="group relative">
-                          <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full bg-gradient-to-r from-amber-600 to-yellow-700 shadow-lg shadow-amber-500/30 border border-amber-400/40 animate-pulse">
-                            <svg xmlns='http://www.w3.org/2000/svg' className='h-5 w-5 text-white' viewBox='0 0 20 20' fill='currentColor'>
-                              <path fillRule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zm-.75-5.75a.75.75 0 001.5 0v-3.5a.75.75 0 00-1.5 0v3.5zM10 7a1 1 0 100-2 1 1 0 000 2z' clipRule='evenodd' />
-                            </svg>
-                            Uploading...
-                          </span>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-xs px-3 py-2 text-xs rounded-md bg-gray-900/90 border border-amber-500/30 text-amber-200 opacity-0 group-hover:opacity-100 transition-opacity">
-                            Some parts are still visible. More content may arrive soon.
-                          </div>
-                        </div>
-                      );
-                    }
-                    // Default fallback (neither all hidden nor any explicitly show)
-                    return null;
-                  })()}
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                  {courses[currentPage][0]}
                 </h2>
                 <div className="w-16 sm:w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
               </div>
