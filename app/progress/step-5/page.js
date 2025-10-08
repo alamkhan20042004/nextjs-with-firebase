@@ -46,17 +46,23 @@ function ProgressPage5Content() {
     return () => clearInterval(timer);
   }, [router]);
 
+  // Download handler (current live behavior)
   const handleDownload = () => {
-    if (url) {
-      setLoading(true);
-      setTimeout(() => {
-        // Remove the temp data
-        localStorage.removeItem('tempDownloadUrl');
-        window.open(url, "_blank", "noopener,noreferrer");
-        setLoading(false);
-      }, 1500);
-    }
+    if (!url) return;
+    // Open the prepared file in a new tab. We intentionally KEEP the tempDownloadUrl
+    // so that a future "Watch" feature can still read it without forcing the user
+    // to regenerate the link. If you want one-time use, uncomment the removal line.
+    // localStorage.removeItem('tempDownloadUrl');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  // Future watch handler (kept for later reactivation)
+  // const handleWatch = () => {
+  //   if (!url) return;
+  //   setTimeout(() => {
+  //     router.push('/watch');
+  //   }, 500);
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white flex flex-col items-center justify-center p-4">
@@ -217,60 +223,23 @@ function ProgressPage5Content() {
               scale: isButtonEnabled ? 1.05 : 1,
               boxShadow: isButtonEnabled ? "0 20px 40px rgba(16, 185, 129, 0.3)" : "none"
             }}
-            onClick={handleDownload}
-            disabled={!isButtonEnabled || loading || !url}
-            className={`px-8 py-4 font-bold rounded-full flex items-center justify-center gap-3 transform transition-all duration-300 ${
-              isButtonEnabled && !loading && url
-                ? "bg-gradient-to-r from-green-600 to-emerald-600 shadow-lg cursor-pointer"
+            onClick={isButtonEnabled ? handleDownload : undefined}
+            disabled={!isButtonEnabled}
+            className={`px-10 py-4 font-bold rounded-full flex items-center justify-center gap-3 transition-all duration-300 ${
+              isButtonEnabled
+                ? "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 shadow-lg hover:shadow-emerald-500/30 cursor-pointer"
                 : "bg-gradient-to-r from-gray-600 to-gray-700 cursor-not-allowed"
             }`}
           >
-            {loading ? (
+            {isButtonEnabled ? (
               <>
-                <svg
-                  className="animate-spin h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"
-                  ></path>
+                Download Now
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
-                Processing...
               </>
             ) : (
-              <>
-                {isButtonEnabled ? (
-                  <>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 mr-2"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    Download Now
-                  </>
-                ) : (
-                  `Please wait ${countdown}s`
-                )}
-              </>
+              <>Preparing...</>
             )}
           </motion.button>
         </div>
@@ -1107,7 +1076,7 @@ export default function ProgressPage5() {
 //             {buttonStates.ad1 ? (
 //               <>
 //                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-11a1 1 0 012 0v2h2a1 1 0 010 2h-2v2a1 1 0 01-2 0v-2H7a1 1 0 010-2h2V7z" clipRule="evenodd" />
 //                 </svg>
 //                 {/* Click Ad 1 (Required) */}
 //                 Click (Required-1)
@@ -1132,7 +1101,7 @@ export default function ProgressPage5() {
 //             {buttonStates.ad2 ? (
 //               <>
 //                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
 //                 </svg>
 //                 {/* Click Ad 2 (Required) */}
 //                 Click (Required-2)
@@ -1158,7 +1127,7 @@ export default function ProgressPage5() {
 //             {buttonStates.ad3 ? (
 //               <>
 //                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
 //                 </svg>
 //                 {/* Click Ad 3 (Required) */}
 //                 Click (Required-3)
@@ -1420,6 +1389,3 @@ export default function ProgressPage5() {
 //     </Suspense>
 //   );
 // }
-
-
-// --------------- this is correct code ---------------
