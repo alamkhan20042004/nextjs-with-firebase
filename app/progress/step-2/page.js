@@ -71,12 +71,12 @@ export default function ProgressPage2() {
           <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
             Verification Required
           </h1>
-          <p className="text-gray-400">Please verify to continue (Step 2 of 5)</p>
+          <p className="text-gray-400">Please verify to continue (Step 2 of 3)</p>
         </div>
         
         <div className="mb-12">
           <div className="flex items-center justify-between mb-8">
-            {[1, 2, 3, 4, 5].map((step, index) => (
+            {[1, 2, 3].map((step, index) => (
               <div key={index} className="flex flex-col items-center relative">
                 <div
                   className={`w-12 h-12 rounded-full flex items-center justify-center z-10 transition-all duration-500 ${
@@ -98,13 +98,10 @@ export default function ProgressPage2() {
                     Step {step}
                   </div>
                 </div>
-                {index < 4 && (
+                {index < 2 && (
                   <div className="absolute top-6 left-12 w-[calc(100%+24px)] h-1 bg-gray-700 -z-10">
                     <div className={`h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700 ${
-                      step < 2 ? "w-full" : 
-                      step === 2 ? "w-1/4" : 
-                      step === 3 ? "w-2/4" : 
-                      step === 4 ? "w-3/4" : "w-0"
+                      step < 2 ? "w-full" : step === 2 ? "w-1/2" : "w-0"
                     }`}></div>
                   </div>
                 )}
@@ -261,7 +258,7 @@ export default function ProgressPage2() {
               <>
                 {isButtonEnabled ? (
                   <>
-                    Continue to Step 3
+                    Continue to Final Step
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5 ml-1 transition-transform duration-200"

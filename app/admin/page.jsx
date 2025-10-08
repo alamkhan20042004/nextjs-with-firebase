@@ -22,96 +22,132 @@ export default function AdminPage() {
   const [courses, setCourses] = useState([]);
   const [showCourses, setShowCourses] = useState(false);
   const [coursesUnsub, setCoursesUnsub] = useState(null);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [editForm, setEditForm] = useState({
-    courseName: "",
-    gumroadLink: "",
-    imageUrl: "",
-    visibility: "show"
-  });
-  const [savingEdit, setSavingEdit] = useState(false);
+  // Removed modal edit state – using dedicated edit page now
   const [deletingId, setDeletingId] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [sectionControl, setSectionControl] = useState([10]);
   const [mounted, setMounted] = useState(false); // Add mounted state
   const router = useRouter();
 
-  useEffect(() => {
-    setMounted(true); // Set mounted to true after component mounts
-  }, []);
+  // Editing now handled in /admin/edit/[id]
 
+  // ---------------- Effect: Auth & Initial Mount ----------------
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        window.location.href = "/login";
-      } else {
-        // If not admin, push to user page
-        if (!ADMIN_EMAILS.includes(u.email || "")) {
-          window.location.href = "/user";
-          return;
-        }
-        setUser(u);
-        setIsLoading(false);
-        
-        // Update user's last active timestamp
-        updateUserActivity(u.uid);
+    setMounted(true); // for animated background
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u || !ADMIN_EMAILS.includes(u.email)) {
+        router.replace("/login");
+        return;
       }
+      setUser(u);
+      setIsLoading(false);
     });
-    
-    // Set up real-time listener for online users
-    const onlineUsersRef = collection(db, "onlineUsers");
-    const unsubscribeOnlineUsers = onSnapshot(onlineUsersRef, (snapshot) => {
-      const onlineIds = new Set();
-      snapshot.forEach((doc) => {
-        onlineIds.add(doc.id);
-      });
-      setOnlineUsers(onlineIds);
-    });
-    
-    return () => {
-      unsub();
-      unsubscribeOnlineUsers();
-    };
-  }, []);
+    return () => unsub();
+  }, [router]);
 
-  // Update user activity timestamp
-  const updateUserActivity = async (userId) => {
+  // ---------------- Fetch Users (real-time) ----------------
+  const fetchUsers = () => {
+    if (showUsers) { // toggle off
+      setShowUsers(false);
+      return;
+    }
     try {
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        lastActive: serverTimestamp(),
-        isOnline: true
+      const qUsers = query(collection(db, "users"), orderBy("createdAt", "desc"));
+      const unsubUsers = onSnapshot(qUsers, (snap) => {
+        const arr = [];
+        snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
+        setUsers(arr);
       });
-    } catch (error) {
-      console.error("Error updating user activity:", error);
+      setShowUsers(true);
+      // Track online users collection separately
+      const onlineQ = collection(db, "onlineUsers");
+      const unsubOnline = onSnapshot(onlineQ, (snap) => {
+        const setO = new Set();
+        snap.forEach((d) => setO.add(d.id));
+        setOnlineUsers(setO);
+      });
+      // store in ref if needed; for now rely on component unmount cleanup
+      return () => { unsubUsers(); unsubOnline(); };
+    } catch (e) {
+      console.error("Error fetching users", e);
+      alert("Failed to fetch users");
     }
   };
 
-  // Fetch users from Firestore with real-time updates
-  const fetchUsers = async () => {
+  // ---------------- Field Handlers ----------------
+  const handleFieldChange = (index, value) => {
+    setFields((prev) => {
+      const copy = [...prev];
+      copy[index] = value;
+      return copy;
+    });
+  };
+
+  // ---------------- Section Control Handlers ----------------
+  const addSection = () => {
+    setSectionControl((prev) => [...prev, 1]);
+  };
+  const removeSection = (idx) => {
+    setSectionControl((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const handleSectionControlChange = (idx, val) => {
+    const num = parseInt(val, 10) || 1;
+    setSectionControl((prev) => prev.map((c, i) => (i === idx ? num : c)));
+  };
+
+  // ---------------- Delete Course ----------------
+  const deleteCourse = async (id) => {
+    if (!confirm("Are you sure you want to delete this course?")) return;
     try {
-      const usersQuery = query(
-        collection(db, "users"),
-        orderBy("createdAt", "desc")
-      );
-      
-      // Set up real-time listener for users
-      const unsubscribe = onSnapshot(usersQuery, (querySnapshot) => {
-        const usersList = [];
-        querySnapshot.forEach((doc) => {
-          usersList.push({ id: doc.id, ...doc.data() });
-        });
-        setUsers(usersList);
-      });
-      
-      setShowUsers(true);
-      
-      // Store the unsubscribe function to clean up later
-      return unsubscribe;
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      alert("Error fetching users. Please try again.");
+      setDeletingId(id);
+      await deleteDoc(doc(db, "adminContent", id));
+    } catch (e) {
+      console.error("Delete failed", e);
+      alert("Failed to delete course");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ---------------- Submit New Course ----------------
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!courseName.trim()) {
+      alert("Please provide a course name");
+      return;
+    }
+    try {
+      setUploading(true);
+      // Trim trailing empty fields to reduce doc size
+      let trimmedFields = [...fields];
+      while (trimmedFields.length && !trimmedFields[trimmedFields.length - 1]) {
+        trimmedFields.pop();
+      }
+      const payload = {
+        courseName: courseName.trim(),
+        gumroadLink: gumroadLink.trim() || "",
+        imageUrl: imageUrl.trim() || "",
+        visibility,
+        fields: trimmedFields,
+        sectionControl,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user?.email || null,
+      };
+      await addDoc(collection(db, "adminContent"), payload);
+      // Reset form
+      setCourseName("");
+      setGumroadLink("");
+      setImageUrl("");
+      setFields(Array(2000).fill(""));
+      setSectionControl([10]);
+      setVisibility("show");
+      alert("Course created successfully");
+    } catch (e) {
+      console.error("Upload failed", e);
+      alert("Failed to upload content");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -145,117 +181,7 @@ export default function AdminPage() {
     setShowCourses(false);
   };
 
-  // Open edit modal
-  const openEditCourse = (course) => {
-    setEditingCourse(course);
-    setEditForm({
-      courseName: course.courseName || "",
-      gumroadLink: course.gumroadLink || "",
-      imageUrl: course.imageUrl || "",
-      visibility: course.visibility || "show"
-    });
-    setEditModalOpen(true);
-  };
-
-  const handleEditChange = (field, value) => {
-    setEditForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const saveCourseEdits = async () => {
-    if (!editingCourse) return;
-    setSavingEdit(true);
-    try {
-      const courseRef = doc(db, "adminContent", editingCourse.id);
-      const updatePayload = {
-        courseName: editForm.courseName,
-        gumroadLink: editForm.gumroadLink,
-        imageUrl: editForm.imageUrl,
-        visibility: editForm.visibility,
-        updatedAt: serverTimestamp()
-      };
-      console.log('[ADMIN] Updating course', editingCourse.id, updatePayload);
-      await updateDoc(courseRef, updatePayload);
-      setEditModalOpen(false);
-      setEditingCourse(null);
-    } catch (e) {
-      console.error("Error updating course:", e);
-      alert("Update failed");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const deleteCourse = async (courseId) => {
-    if (!confirm("Are you sure you want to delete this course? This cannot be undone.")) return;
-    setDeletingId(courseId);
-    try {
-      console.log('[ADMIN] Deleting course', courseId);
-      await deleteDoc(doc(db, "adminContent", courseId));
-    } catch (e) {
-      console.error("Error deleting course:", e);
-      alert("Delete failed");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleFieldChange = (index, value) => {
-    const newFields = [...fields];
-    newFields[index] = value;
-    setFields(newFields);
-  };
-
-  const handleSectionControlChange = (index, value) => {
-    const newSectionControl = [...sectionControl];
-    newSectionControl[index] = parseInt(value) || 0;
-    setSectionControl(newSectionControl);
-  };
-
-  const addSection = () => {
-    setSectionControl([...sectionControl, 10]);
-  };
-
-  const removeSection = (index) => {
-    if (sectionControl.length > 1) {
-      const newSectionControl = [...sectionControl];
-      newSectionControl.splice(index, 1);
-      setSectionControl(newSectionControl);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setUploading(true);
-    try {
-      const payload = {
-        fields,
-        gumroadLink,
-        imageUrl,
-        courseName,
-        visibility,
-        sectionControl,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: user.email
-      };
-      console.log('[ADMIN] Creating new course payload', payload);
-      const ref = await addDoc(collection(db, "adminContent"), payload);
-      console.log('[ADMIN] Created course doc id:', ref.id);
-      
-      alert("Content uploaded successfully!");
-      setFields(Array(2000).fill(""));
-      setGumroadLink("");
-      setImageUrl("");
-      setCourseName("");
-      setVisibility("show");
-      setSectionControl([10]);
-    } catch (error) {
-      console.error("Error uploading content:", error);
-      alert("Error uploading content. Please try again.");
-    } finally {
-      setUploading(false);
-    }
-  };
+  // (Old inline edit modal code removed; editing handled on dedicated page)
 
   const redirectToUserPage = () => {
     router.push("/user?adminPreview=1");
@@ -469,7 +395,7 @@ export default function AdminPage() {
                         <td className="py-3 px-4">{updated ? updated.toLocaleDateString() : '—'}</td>
                         <td className="py-3 px-4 flex items-center gap-2">
                           <button
-                            onClick={() => openEditCourse(c)}
+                            onClick={() => router.push(`/admin/edit/${c.id}`)}
                             className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded"
                           >Edit</button>
                           <button
@@ -682,70 +608,7 @@ export default function AdminPage() {
         </div>
       </div>
       {/* Edit Course Modal */}
-      {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg bg-gray-900 border border-gray-700 rounded-xl p-6 relative">
-            <button
-              onClick={() => { setEditModalOpen(false); setEditingCourse(null); }}
-              className="absolute top-2 right-2 text-gray-400 hover:text-white"
-            >
-              ✕
-            </button>
-            <h3 className="text-xl font-semibold mb-4 text-fuchsia-400">Edit Course</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Course Name</label>
-                <input
-                  type="text"
-                  value={editForm.courseName}
-                  onChange={e => handleEditChange('courseName', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Gumroad Link</label>
-                <input
-                  type="text"
-                  value={editForm.gumroadLink}
-                  onChange={e => handleEditChange('gumroadLink', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Image URL</label>
-                <input
-                  type="text"
-                  value={editForm.imageUrl}
-                  onChange={e => handleEditChange('imageUrl', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Visibility</label>
-                <select
-                  value={editForm.visibility}
-                  onChange={e => handleEditChange('visibility', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-fuchsia-600"
-                >
-                  <option value="show">Show</option>
-                  <option value="hide">Hide</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => { setEditModalOpen(false); setEditingCourse(null); }}
-                className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white"
-              >Cancel</button>
-              <button
-                disabled={savingEdit}
-                onClick={saveCourseEdits}
-                className={`px-5 py-2 rounded font-semibold text-white ${savingEdit ? 'bg-indigo-800 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-              >{savingEdit ? 'Saving...' : 'Save Changes'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Edit modal removed; editing handled on dedicated page */}
       
       <style jsx global>{`
         @keyframes fadeIn {

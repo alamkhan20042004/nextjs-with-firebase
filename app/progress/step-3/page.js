@@ -9,26 +9,25 @@ export default function ProgressPage3() {
   const [countdown, setCountdown] = useState(12);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [buttonClicked, setButtonClicked] = useState(false);
+  const [url, setUrl] = useState("");
 
   useEffect(() => {
-    // Check if we have the tempDownloadUrl in localStorage
     const tempData = localStorage.getItem('tempDownloadUrl');
     if (!tempData) {
       router.push('/user');
       return;
     }
-    
-    // Parse the data to check expiration
     try {
       const data = JSON.parse(tempData);
       const now = Date.now();
-      if (now - data.timestamp > 30 * 60 * 1000) { // 30 minutes
+      if (now - data.timestamp > 30 * 60 * 1000) {
         localStorage.removeItem('tempDownloadUrl');
         router.push('/user');
         return;
       }
-    } catch (error) {
-      console.error("Error parsing URL data:", error);
+      setUrl(data.url || "");
+    } catch (err) {
+      console.error('Error parsing URL data:', err);
       router.push('/user');
       return;
     }
@@ -48,20 +47,15 @@ export default function ProgressPage3() {
     return () => clearInterval(timer);
   }, [router]);
 
-  const handleContinue = () => {
-    if (!isButtonEnabled || loading) return;
-    
-    // Set button clicked state for visual feedback
+  const handleDownload = () => {
+    if (!isButtonEnabled || loading || !url) return;
     setButtonClicked(true);
     setLoading(true);
-    
-    // Button click animation ke baad thoda delay
     setTimeout(() => {
-      // Reset button state for future clicks
       setButtonClicked(false);
       setLoading(false);
-      window.open('/progress/step-4', "_blank", "noopener,noreferrer");
-    }, 1500);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }, 800);
   };
 
   return (
@@ -71,12 +65,12 @@ export default function ProgressPage3() {
           <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
             Processing Your Request
           </h1>
-          <p className="text-gray-400">Please wait while we process your request (Step 3 of 5)</p>
+          <p className="text-gray-400">Your content is ready soon (Step 3 of 3)</p>
         </div>
 
         <div className="mb-12">
           <div className="flex items-center justify-between mb-8">
-            {[1, 2, 3, 4, 5].map((step, index) => (
+            {[1, 2, 3].map((step, index) => (
               <div key={index} className="flex flex-col items-center relative">
                 <div
                   className={`w-12 h-12 rounded-full flex items-center justify-center z-10 transition-all duration-500 ${
@@ -89,22 +83,16 @@ export default function ProgressPage3() {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                  ) : (
-                    <span className="text-gray-400">{step}</span>
-                  )}
+                  ) : null}
                 </div>
                 <div className="mt-3 text-center">
                   <div className={`font-medium ${step <= 3 ? "text-white" : "text-gray-400"}`}>
                     Step {step}
                   </div>
                 </div>
-                {index < 4 && (
+                {index < 2 && (
                   <div className="absolute top-6 left-12 w-[calc(100%+24px)] h-1 bg-gray-700 -z-10">
-                    <div className={`h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700 ${
-                      step < 3 ? "w-full" : 
-                      step === 3 ? "w-2/4" : 
-                      step === 4 ? "w-3/4" : "w-0"
-                    }`}></div>
+                    <div className={`h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-700 ${step < 3 ? 'w-full' : 'w-0'}`}></div>
                   </div>
                 )}
               </div>
@@ -113,10 +101,8 @@ export default function ProgressPage3() {
         </div>
 
         <div className="text-center mb-10">
-          <h3 className="text-xl font-semibold mb-2">Processing</h3>
-          <p className="text-gray-400 mb-6">
-            Please wait while we process your request
-          </p>
+          <h3 className="text-xl font-semibold mb-2">Finalizing</h3>
+          <p className="text-gray-400 mb-6">Preparing your download</p>
         </div>
         
         {/* Countdown Timer */}
@@ -191,7 +177,7 @@ export default function ProgressPage3() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path>
                 </svg>
-                <span className="text-blue-300">Processing your request...</span>
+                <span className="text-blue-300">Preparing your file...</span>
               </div>
             </div>
           ) : (
@@ -200,13 +186,13 @@ export default function ProgressPage3() {
                 <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-green-300">Processing complete! You may continue.</span>
+                <span className="text-green-300">Ready! Click download below.</span>
               </div>
             </div>
           )}
         </motion.div>
         
-        {/* Single Continue Button */}
+        {/* Final Download Button */}
         <div className="flex justify-center">
           <motion.button
             whileTap={{ 
@@ -224,8 +210,8 @@ export default function ProgressPage3() {
                   ? "linear-gradient(to right, #2563eb, #7c3aed)"
                   : "linear-gradient(to right, #4b5563, #374151)"
             }}
-            onClick={handleContinue}
-            disabled={!isButtonEnabled || loading}
+            onClick={handleDownload}
+            disabled={!isButtonEnabled || loading || !url}
             className={`px-8 py-4 font-bold rounded-full flex items-center justify-center gap-3 transform transition-all duration-200 ${
               isButtonEnabled && !loading
                 ? "bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg cursor-pointer hover:shadow-blue-500/30"
@@ -260,7 +246,7 @@ export default function ProgressPage3() {
               <>
                 {isButtonEnabled ? (
                   <>
-                    Continue to Step 4
+                    Download Now
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5 ml-1 transition-transform duration-200"

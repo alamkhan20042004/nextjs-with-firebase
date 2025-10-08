@@ -71,13 +71,13 @@ function ProgressContent() {
           <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
             Content Access - Step 1
           </h1>
-          <p className="text-gray-400">Verifying your access (Step 1 of 5)</p>
+          <p className="text-gray-400">Verifying your access (Step 1 of 3)</p>
         </div>
         
         {/* Progress Stepper */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-8">
-            {[1, 2, 3, 4, 5].map((step, index) => (
+            {[1, 2, 3].map((step, index) => (
               <div key={index} className="flex flex-col items-center relative">
                 <div
                   className={`w-12 h-12 rounded-full flex items-center justify-center z-10 transition-all duration-500 ${
@@ -97,7 +97,7 @@ function ProgressContent() {
                     Step {step}
                   </div>
                 </div>
-                {index < 4 && (
+                {index < 2 && (
                   <div className="absolute top-6 left-12 w-[calc(100%+24px)] h-1 bg-gray-700 -z-10"></div>
                 )}
               </div>
