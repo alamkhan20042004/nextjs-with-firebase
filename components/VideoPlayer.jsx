@@ -34,6 +34,12 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
   const [showUi, setShowUi] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [log, setLog] = useState([]);
+  // New enhancement state
+  const [showSettings, setShowSettings] = useState(false);
+  const [skipInterval, setSkipInterval] = useState(10); // seconds
+  const [rememberPosition, setRememberPosition] = useState(true);
+  const restoredRef = useRef(false);
+  const pendingSeekRef = useRef(0); // accumulate skip requests before metadata ready
 
   const pushLog = (m) => setLog(d => [...d, `[${new Date().toISOString()}] ${m}`]);
 
@@ -60,6 +66,8 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
       if (typeof prefs.muted === 'boolean') setMuted(prefs.muted);
       if (typeof prefs.playbackRate === 'number') setPlaybackRate(prefs.playbackRate);
       if (prefs.hlsQuality) setHlsLevel(prefs.hlsQuality); // will apply after manifest
+      if (typeof prefs.skipInterval === 'number') setSkipInterval(prefs.skipInterval);
+      if (typeof prefs.rememberPosition === 'boolean') setRememberPosition(prefs.rememberPosition);
     }
   }, []);
 
@@ -167,6 +175,19 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onLoaded = () => setDuration(el.duration || 0);
+    // Enhance loadedmetadata to apply any pending seek operations queued before metadata was ready
+    const onLoadedPatched = () => {
+      setDuration(el.duration || 0);
+      if (pendingSeekRef.current) {
+        try {
+          const base = 0; // before metadata, currentTime assumed 0
+          const target = Math.min(Math.max(0, base + pendingSeekRef.current), el.duration || base + pendingSeekRef.current);
+          el.currentTime = target;
+          pendingSeekRef.current = 0;
+          pushLog('Applied pending early skip to ' + target.toFixed(2) + 's');
+        } catch {}
+      }
+    };
     const onTime = () => setCurrentTime(el.currentTime || 0);
     const onProgress = () => {
       try {
@@ -180,14 +201,14 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
     const onVolume = () => { setVolume(el.volume); setMuted(el.muted); };
     el.addEventListener('play', onPlay);
     el.addEventListener('pause', onPause);
-    el.addEventListener('loadedmetadata', onLoaded);
+  el.addEventListener('loadedmetadata', onLoadedPatched);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('progress', onProgress);
     el.addEventListener('volumechange', onVolume);
     return () => {
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
-      el.removeEventListener('loadedmetadata', onLoaded);
+  el.removeEventListener('loadedmetadata', onLoadedPatched);
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('progress', onProgress);
       el.removeEventListener('volumechange', onVolume);
@@ -198,6 +219,9 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
   useEffect(() => { savePrefs({ volume, muted }); }, [volume, muted]);
   // Persist playback rate
   useEffect(() => { savePrefs({ playbackRate }); }, [playbackRate]);
+  // Persist skip interval & remember position
+  useEffect(() => { savePrefs({ skipInterval }); }, [skipInterval]);
+  useEffect(() => { savePrefs({ rememberPosition }); }, [rememberPosition]);
   // Persist quality (store human-friendly label if available)
   useEffect(() => {
     if (type !== 'hls') return;
@@ -229,8 +253,18 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
   };
   const skip = (seconds) => {
     const el = videoRef.current; if (!el) return;
+    // If metadata not yet loaded (duration 0 / NaN), queue the skip
+    if (!el.duration || isNaN(el.duration)) {
+      pendingSeekRef.current += seconds;
+      pushLog('Queued early skip ' + seconds + 's (metadata not ready)');
+      return;
+    }
     const target = (el.currentTime || 0) + seconds;
     el.currentTime = Math.min(Math.max(0, target), duration || el.duration || target);
+  };
+  const largeSkip = (direction) => {
+    // fixed 30s large skip
+    skip(direction * 30);
   };
   const handleSeek = (e) => {
     const el = videoRef.current; if (!el || !duration) return;
@@ -285,8 +319,8 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
       case ' ': case 'k': e.preventDefault(); togglePlay(); break;
       case 'm': toggleMute(); break;
       case 'f': toggleFullscreen(); break;
-      case 'arrowright': { const el = videoRef.current; if (el) el.currentTime = Math.min(el.currentTime + 5, duration); break; }
-      case 'arrowleft': { const el = videoRef.current; if (el) el.currentTime = Math.max(el.currentTime - 5, 0); break; }
+      case 'arrowright': { if (e.shiftKey) largeSkip(1); else skip(skipInterval); break; }
+      case 'arrowleft': { if (e.shiftKey) largeSkip(-1); else skip(-skipInterval); break; }
       case 'arrowup': { const el = videoRef.current; if (el) el.volume = Math.min(1, el.volume + 0.05); break; }
       case 'arrowdown': { const el = videoRef.current; if (el) el.volume = Math.max(0, el.volume - 0.05); break; }
       case '>': case '.': changeRate(Math.min(3, (playbackRate + 0.25))); break;
@@ -294,9 +328,115 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
       default: break;
     }
   };
+  // Add global key listener so user doesn't need to focus container first
+  useEffect(() => {
+    const listener = (e) => handleKey(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [handleKey]);
+
+  // Autofocus container when initialized so immediate keyboard control works
+  useEffect(() => { if (initialized) { try { containerRef.current?.focus(); } catch {} } }, [initialized]);
+
+  // Remember last position logic
+  const POS_PREFIX = 'bf_player_pos_';
+  // Restore once metadata is loaded & preference enabled
+  useEffect(() => {
+    if (!rememberPosition || !src) return;
+    const el = videoRef.current; if (!el || !duration) return;
+    if (restoredRef.current) return;
+    try {
+      const key = POS_PREFIX + encodeURIComponent(src);
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const seconds = parseFloat(raw);
+        if (isFinite(seconds) && seconds > 0 && seconds < duration - 5) {
+          el.currentTime = seconds;
+          pushLog('Restored position ' + seconds.toFixed(1) + 's');
+        }
+      }
+      restoredRef.current = true;
+    } catch {}
+  }, [rememberPosition, src, duration]);
+
+  // Periodic save current time
+  useEffect(() => {
+    if (!rememberPosition || !src) return;
+    if (!isPlaying) return; // only while playing to reduce writes
+    const id = setInterval(() => {
+      const el = videoRef.current; if (!el) return;
+      try {
+        const key = POS_PREFIX + encodeURIComponent(src);
+        localStorage.setItem(key, String(el.currentTime || 0));
+      } catch {}
+    }, 5000);
+    return () => clearInterval(id);
+  }, [rememberPosition, src, isPlaying]);
+
+  // Save immediately when user pauses (to capture last point)
+  useEffect(() => {
+    if (!rememberPosition || !src) return;
+    if (isPlaying) return;
+    const el = videoRef.current; if (!el) return;
+    try {
+      const key = POS_PREFIX + encodeURIComponent(src);
+      localStorage.setItem(key, String(el.currentTime || 0));
+    } catch {}
+  }, [isPlaying, rememberPosition, src]);
 
   return (
     <div ref={containerRef} tabIndex={0} onKeyDown={handleKey} className="w-full h-full outline-none relative select-none">
+      {/* Mobile / touch skip zones */}
+      <div
+        className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer select-none"
+        onDoubleClick={() => skip(-skipInterval)}
+        onClick={(e) => {
+          // Single-tap gesture: small skip back
+          if (e.detail === 1) {
+            skip(-skipInterval);
+          }
+        }}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/60 text-[10px] bg-black/30 px-2 py-1 rounded hidden sm:block">-{skipInterval}s</div>
+      </div>
+      <div
+        className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer select-none"
+        onDoubleClick={() => skip(skipInterval)}
+        onClick={(e) => { if (e.detail === 1) { skip(skipInterval); } }}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/60 text-[10px] bg-black/30 px-2 py-1 rounded hidden sm:block">+{skipInterval}s</div>
+      </div>
+      {/* Center overlay skip controls (visible when UI is shown) */}
+      {showUi && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-20 z-30 select-none">
+          <button
+            type="button"
+            aria-label={`Skip back ${skipInterval} seconds`}
+            onClick={() => skip(-skipInterval)}
+            className="pointer-events-auto w-16 h-16 md:w-20 md:h-20 flex items-center justify-center rounded-full bg-black/40 backdrop-blur border border-white/20 hover:bg-black/60 active:scale-95 transition-all group"
+          >
+            <div className="relative flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-9 h-9 text-white drop-shadow"><path fill="currentColor" d="M12 5v2.79C10.84 6.67 9.34 6 7.67 6 4.18 6 1.39 8.69 1.39 12S4.18 18 7.67 18c1.67 0 3.17-.67 4.33-1.79V19h2V5h-2zm-4.33 11C6.01 16 4.39 14.43 4.39 12s1.62-4 3.28-4c1.15 0 2.18.55 2.77 1.4v5.2c-.59.85-1.62 1.4-2.77 1.4z"/></svg>
+              <span className="absolute text-white font-semibold text-sm">{skipInterval}</span>
+              <span className="absolute -bottom-3 text-[10px] text-white/70 tracking-wide hidden md:block">SEC</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            aria-label={`Skip forward ${skipInterval} seconds`}
+            onClick={() => skip(skipInterval)}
+            className="pointer-events-auto w-16 h-16 md:w-20 md:h-20 flex items-center justify-center rounded-full bg-black/40 backdrop-blur border border-white/20 hover:bg-black/60 active:scale-95 transition-all group"
+          >
+            <div className="relative flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-9 h-9 text-white drop-shadow transform rotate-180"><path fill="currentColor" d="M12 5v2.79C10.84 6.67 9.34 6 7.67 6 4.18 6 1.39 8.69 1.39 12S4.18 18 7.67 18c1.67 0 3.17-.67 4.33-1.79V19h2V5h-2zm-4.33 11C6.01 16 4.39 14.43 4.39 12s1.62-4 3.28-4c1.15 0 2.18.55 2.77 1.4v5.2c-.59.85-1.62 1.4-2.77 1.4z"/></svg>
+              <span className="absolute text-white font-semibold text-sm">{skipInterval}</span>
+              <span className="absolute -bottom-3 text-[10px] text-white/70 tracking-wide hidden md:block">SEC</span>
+            </div>
+          </button>
+        </div>
+      )}
       <video
         ref={videoRef}
         className="w-full h-full bg-black"
@@ -345,7 +485,7 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
           </div>
         </div>
         <div className="flex items-center gap-3 px-4 pb-3 flex-wrap">
-          <button onClick={() => skip(-10)} aria-label="Skip Back 10s" className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10">
+          <button onClick={() => skip(-skipInterval)} aria-label={`Skip Back ${skipInterval}s`} className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10" title={`-${skipInterval}s (Shift for -30s)`}>
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 5v2.79C10.84 6.67 9.34 6 7.67 6 4.18 6 1.39 8.69 1.39 12S4.18 18 7.67 18c1.67 0 3.17-.67 4.33-1.79V19h2V5h-2zm-4.33 11C6.01 16 4.39 14.43 4.39 12s1.62-4 3.28-4c1.15 0 2.18.55 2.77 1.4v5.2c-.59.85-1.62 1.4-2.77 1.4zM19 6h-2v12h2V6z"/></svg>
           </button>
           <button onClick={togglePlay} aria-label={isPlaying ? 'Pause' : 'Play'} className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10">
@@ -353,7 +493,7 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
               {isPlaying ? <path d="M6 4h4v16H6zm8 0h4v16h-4z"/> : <path d="M8 5v14l11-7z"/>}
             </svg>
           </button>
-          <button onClick={() => skip(10)} aria-label="Skip Forward 10s" className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10">
+          <button onClick={() => skip(skipInterval)} aria-label={`Skip Forward ${skipInterval}s`} className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10" title={`+${skipInterval}s (Shift for +30s)`}>
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 5v2.79C13.16 6.67 14.66 6 16.33 6c3.49 0 6.28 2.69 6.28 6s-2.79 6-6.28 6c-1.67 0-3.17-.67-4.33-1.79V19h-2V5h2zm4.33 11c1.66 0 3.28-1.57 3.28-4s-1.62-4-3.28-4c-1.15 0-2.18.55-2.77 1.4v5.2c.59.85 1.62 1.4 2.77 1.4zM5 6H3v12h2V6z"/></svg>
           </button>
           <button onClick={toggleMute} aria-label={muted || volume===0 ? 'Unmute' : 'Mute'} className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10">
@@ -412,8 +552,53 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
               )}
             </svg>
           </button>
+          <button onClick={() => setShowSettings(v=>!v)} aria-label="Player Settings" className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10" title="Settings (S)">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .11-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.14 7.14 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.93 2h-3.86a.5.5 0 0 0-.5.42l-.36 2.54c-.6.24-1.15.56-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L3.66 8.02a.5.5 0 0 0 .11.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L3.77 13.7a.5.5 0 0 0-.11.64l1.92 3.32c.14.24.43.34.61.22l2.39-.96c.48.38 1.03.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.86c.24 0 .45-.18.5-.42l.36-2.54c.6-.24 1.15-.56 1.63-.94l2.39.96c.25.1.52 0 .61-.22l1.92-3.32a.5.5 0 0 0-.11-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
+          </button>
         </div>
       </div>
+      {showSettings && (
+        <div className="absolute bottom-20 right-4 w-72 max-w-[90%] bg-black/80 backdrop-blur border border-white/10 rounded-lg p-4 text-xs z-40 space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold tracking-wide text-white/90">Player Settings</h3>
+            <button onClick={()=>setShowSettings(false)} className="text-white/60 hover:text-white" aria-label="Close Settings">✕</button>
+          </div>
+          <div className="space-y-2">
+            <label className="flex flex-col gap-1">
+              <span className="uppercase text-[10px] text-white/50">Skip Interval</span>
+              <div className="flex flex-wrap gap-2">
+                {[5,10,15,30,60].map(intv => (
+                  <button key={intv} onClick={()=>setSkipInterval(intv)} className={`px-2 py-1 rounded border text-[11px] ${skipInterval===intv? 'bg-blue-600/50 border-blue-400' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}>{intv}s</button>
+                ))}
+              </div>
+            </label>
+            <label className="flex items-center gap-2 select-none cursor-pointer">
+              <input type="checkbox" checked={rememberPosition} onChange={e=>setRememberPosition(e.target.checked)} className="accent-blue-500" />
+              <span className="text-white/80">Remember last position</span>
+            </label>
+            <div className="flex flex-col gap-1">
+              <span className="uppercase text-[10px] text-white/50">Speed</span>
+              <input type="range" min={0.25} max={3} step={0.25} value={playbackRate} onChange={(e)=>changeRate(parseFloat(e.target.value))} className="w-full accent-blue-500" />
+              <div className="flex justify-between text-[10px] text-white/40">
+                <span>0.25x</span><span>{playbackRate.toFixed(2)}x</span><span>3x</span>
+              </div>
+            </div>
+            <details className="rounded border border-white/10">
+              <summary className="cursor-pointer px-2 py-1 text-white/70 text-[11px] tracking-wide">Keyboard Shortcuts</summary>
+              <ul className="px-3 py-2 list-disc list-inside text-white/60 space-y-1 text-[10px]">
+                <li>Space / K: Play / Pause</li>
+                <li>Arrow Left/Right: -/+ {skipInterval}s</li>
+                <li>Shift + Arrow Left/Right: -/+ 30s</li>
+                <li>Arrow Up/Down: Volume ±5%</li>
+                <li>M: Mute toggle</li>
+                <li>&lt; / , : Speed -0.25x</li>
+                <li>&gt; / . : Speed +0.25x</li>
+                <li>F: Fullscreen</li>
+              </ul>
+            </details>
+          </div>
+        </div>
+      )}
       {debug && log.length > 0 && (
         <details className="absolute top-2 left-2 bg-black/70 text-white text-[10px] p-2 rounded max-w-[260px] space-y-1">
           <summary className="cursor-pointer font-semibold">Debug</summary>

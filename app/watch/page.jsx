@@ -5,6 +5,7 @@ import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { ADMIN_EMAILS } from "@/lib/config";
 import VideoPlayer from "@/components/VideoPlayer";
+import YouTubePlayer from "@/components/YouTubePlayer";
 
 export default function WatchPage() {
   const router = useRouter();
@@ -20,11 +21,17 @@ export default function WatchPage() {
   const [debug, setDebug] = useState([]);
   const [initialized, setInitialized] = useState(false);
   const [ytReady, setYtReady] = useState(false);
-  const [ytEmbedUrl, setYtEmbedUrl] = useState("");
+  const [ytEmbedUrl, setYtEmbedUrl] = useState(""); // retained for thumbnail initialization (unused with new player)
+  const [ytVideoId, setYtVideoId] = useState("");
   const [ytThumb, setYtThumb] = useState("");
   const [fbReady, setFbReady] = useState(false);
   const [fbEmbedUrl, setFbEmbedUrl] = useState("");
   const [fbThumb, setFbThumb] = useState(""); // Will attempt simple placeholder (FB doesn't give easy thumb without API)
+  // Streamtape support
+  const [streamtapeId, setStreamtapeId] = useState("");
+  const [streamtapeResolving, setStreamtapeResolving] = useState(false);
+  const [streamtapeFallback, setStreamtapeFallback] = useState(false); // fallback to iframe embed
+  const [streamtapeRetryToken, setStreamtapeRetryToken] = useState(0);
   const hlsInstanceRef = useRef(null);
   const timeoutRef = useRef(null);
   // Custom player logic moved into VideoPlayer component
@@ -48,6 +55,16 @@ export default function WatchPage() {
     let type = "unknown";
     let finalUrl = url.trim();
 
+  // Streamtape detection: patterns like streamtape.com/v/<id>/ or streamtape.com/e/<id>
+  // Original regex required a trailing slash which caused some valid links to fail detection.
+  const streamtapeRegex = /streamtape\.com\/(?:v|e)\/([A-Za-z0-9]+)(?:\/|$)/i;
+    const stMatch = finalUrl.match(streamtapeRegex);
+    if (stMatch) {
+      type = 'streamtape';
+      // We'll defer resolution (need to fetch actual streamable link via serverless endpoint) and return placeholder for now.
+      return { type, finalUrl };
+    }
+
     // Facebook variants: /videos/<id>, fb.watch/<code>, watch/?v=<id>
     const fbWatchParam = finalUrl.match(/facebook\.com\/watch\/?\?v=([0-9]+)/);
     if (fbWatchParam) {
@@ -69,7 +86,7 @@ export default function WatchPage() {
       return { type, finalUrl };
     }
 
-    const ytRegex = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/;
+  const ytRegex = /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/;
     const ytMatch = finalUrl.match(ytRegex);
     if (ytMatch) {
       const id = ytMatch[1];
@@ -116,49 +133,73 @@ export default function WatchPage() {
     return { type, finalUrl };
   }, []);
 
-  // Load URL from localStorage (tempDownloadUrl) like existing flow
+  // Load URL from localStorage (tempDownloadUrl) with resilience for legacy/plain string values
   useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('tempDownloadUrl') : null;
-      if (!raw) { router.replace('/user'); return; }
-      const data = JSON.parse(raw);
-      const now = Date.now();
-      if (now - data.timestamp > 30 * 60 * 1000) { // expiry 30m
-        localStorage.removeItem('tempDownloadUrl');
-        router.replace('/user');
-        return;
-      }
-      const originalUrl = data.url;
-      setRawSrc(originalUrl);
-      const { type, finalUrl } = normalizeUrl(originalUrl);
-      setVideoType(type);
-      setResolvedSrc(finalUrl);
-      if (type === 'youtube') {
-        // Extract id again for thumbnail and refined embed parameters
-        const idMatch = originalUrl.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
-        const vid = idMatch ? idMatch[1] : null;
-        if (vid) {
-          setYtThumb(`https://img.youtube.com/vi/${vid}/hqdefault.jpg`);
-          setYtEmbedUrl(`https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0&modestbranding=1&showinfo=0&playsinline=1&controls=1`);
+    const load = () => {
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('tempDownloadUrl') : null;
+        if (!raw) { router.replace('/user'); return; }
+
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          // Fallback: older format may have stored the URL directly as string
+          data = { url: raw, timestamp: Date.now() };
         }
-      } else if (type === 'facebook') {
-        // Basic placeholder thumbnail (could be improved by a scraping service / Graph API if allowed)
-        setFbThumb('https://static.xx.fbcdn.net/rsrc.php/v3/yN/r/AMd4C3xQ0oZ.png');
-        setFbEmbedUrl(finalUrl);
+        if (!data || typeof data.url !== 'string') {
+          router.replace('/user');
+          return;
+        }
+        const now = Date.now();
+        if (!data.timestamp || typeof data.timestamp !== 'number') {
+          // Backfill missing timestamp instead of rejecting
+          data.timestamp = now;
+        }
+        // Expiry check (30m); if expired allow user to reselect rather than error
+        if (now - data.timestamp > 30 * 60 * 1000) {
+          localStorage.removeItem('tempDownloadUrl');
+          router.replace('/user');
+          return;
+        }
+
+        const originalUrl = data.url.trim();
+        if (!originalUrl) { router.replace('/user'); return; }
+        setRawSrc(originalUrl);
+        const { type, finalUrl } = normalizeUrl(originalUrl);
+        setVideoType(type);
+        setResolvedSrc(finalUrl);
+        if (type === 'streamtape') {
+          const idMatch = originalUrl.match(/streamtape\.com\/(?:v|e)\/([A-Za-z0-9]+)(?:\/|$)/i);
+          if (idMatch) setStreamtapeId(idMatch[1]);
+        }
+        if (type === 'youtube') {
+          const idMatch = originalUrl.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+          const vid = idMatch ? idMatch[1] : null;
+          if (vid) {
+            setYtVideoId(vid);
+            setYtThumb(`https://img.youtube.com/vi/${vid}/hqdefault.jpg`);
+          }
+        } else if (type === 'facebook') {
+          // Basic placeholder thumbnail (could be improved by a scraping service / Graph API if allowed)
+          setFbThumb('https://static.xx.fbcdn.net/rsrc.php/v3/yN/r/AMd4C3xQ0oZ.png');
+          setFbEmbedUrl(finalUrl);
+        }
+        pushDebug(`Original URL: ${originalUrl}`);
+        pushDebug(`Normalized (${type}): ${finalUrl}`);
+        if (typeof window !== 'undefined') {
+          const p = new URLSearchParams(window.location.search);
+          setIsAdminPreview(p.get('adminPreview') === '1');
+        }
+        setLoading(false);
+        setInitialized(true);
+      } catch (e) {
+        console.error(e);
+        setError('Failed to load video metadata.');
+        setLoading(false);
       }
-      pushDebug(`Original URL: ${originalUrl}`);
-      pushDebug(`Normalized (${type}): ${finalUrl}`);
-      if (typeof window !== 'undefined') {
-        const p = new URLSearchParams(window.location.search);
-        setIsAdminPreview(p.get('adminPreview') === '1');
-      }
-      setLoading(false);
-      setInitialized(true);
-    } catch (e) {
-      console.error(e);
-      setError('Failed to load video metadata.');
-      setLoading(false);
-    }
+    };
+    load();
   }, [router, normalizeUrl]);
 
   // Initialize playback for hls/mp4 types
@@ -245,6 +286,56 @@ export default function WatchPage() {
 
   const handleExit = () => { router.push('/user'); };
 
+  // Resolve Streamtape direct URL once identified
+  useEffect(() => {
+    const resolveStreamtape = async () => {
+      if (videoType !== 'streamtape') return;
+      if (!rawSrc) return;
+      try {
+        setStreamtapeResolving(true);
+        pushDebug('Resolving Streamtape direct link...');
+        const abort = new AbortController();
+        const timeout = setTimeout(() => abort.abort(), 12000);
+        const resp = await fetch(`/api/resolve-streamtape?url=${encodeURIComponent(rawSrc)}`, { signal: abort.signal });
+        clearTimeout(timeout);
+        const data = await resp.json();
+        if (data.url) {
+          pushDebug('Streamtape resolved to direct URL.');
+          // Replace resolvedSrc with direct MP4 link and force type mp4
+          setResolvedSrc(data.url);
+          setVideoType('mp4');
+        } else {
+          pushDebug('Streamtape resolution failed: ' + (data.error || 'unknown error'));
+          if (streamtapeId) {
+            pushDebug('Falling back to Streamtape embed due to failed resolution.');
+            setStreamtapeFallback(true);
+          }
+        }
+      } catch (e) {
+        pushDebug('Streamtape resolution error: ' + e.message);
+        if (streamtapeId) {
+          pushDebug('Falling back to Streamtape embed due to resolution exception.');
+          setStreamtapeFallback(true);
+        }
+      }
+      finally {
+        setStreamtapeResolving(false);
+      }
+    };
+    resolveStreamtape();
+  }, [videoType, rawSrc, streamtapeRetryToken, streamtapeId]);
+
+  // Handle errors from VideoPlayer (including failed Streamtape hotlink) by falling back to embed
+  const handlePlayerError = (msg) => {
+    setError(msg);
+    if (streamtapeId && !streamtapeFallback) {
+      pushDebug('Direct Streamtape playback failed, falling back to embed iframe.');
+      setStreamtapeFallback(true);
+      // Reset error so user can still view via iframe
+      setError('');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       <header className="p-4 flex flex-wrap gap-3 justify-between items-center bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700">
@@ -280,37 +371,19 @@ export default function WatchPage() {
           <div className="w-full max-w-5xl aspect-video bg-black relative rounded-lg overflow-hidden shadow-xl border border-gray-800">
             {videoType === 'youtube' ? (
               <div className="w-full h-full relative flex items-center justify-center bg-black">
-                {!ytReady && (
-                  <button
-                    onClick={() => setYtReady(true)}
-                    className="group relative w-full h-full"
-                  >
-                    {ytThumb && (
-                      <img
-                        src={ytThumb}
-                        alt="Video thumbnail"
-                        className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity"
-                        loading="lazy"
-                      />
-                    )}
+                {!ytReady && ytThumb && (
+                  <button onClick={() => setYtReady(true)} className="group relative w-full h-full">
+                    <img src={ytThumb} alt="Video thumbnail" className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity" loading="lazy" />
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <div className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                        <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
+                        <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                       </div>
-                      <p className="mt-4 text-xs text-gray-300 tracking-wide uppercase">Tap to Play</p>
+                      <p className="mt-4 text-xs text-gray-300 tracking-wide uppercase">Tap to Start</p>
                     </div>
                   </button>
                 )}
-                {ytReady && ytEmbedUrl && (
-                  <iframe
-                    src={ytEmbedUrl}
-                    className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    title="Video"
-                  />
+                {ytReady && ytVideoId && (
+                  <YouTubePlayer videoId={ytVideoId} onError={(m)=>setError(m)} />
                 )}
               </div>
             ) : videoType === 'facebook' ? (
@@ -339,19 +412,50 @@ export default function WatchPage() {
                   </button>
                 )}
                 {fbReady && fbEmbedUrl && (
-                  <iframe
-                    src={fbEmbedUrl}
-                    className="absolute inset-0 w-full h-full"
-                    style={{border:'none',overflow:'hidden'}}
-                    scrolling="no"
-                    frameBorder="0"
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                    allowFullScreen={true}
-                    title="Facebook Video"
-                  />
+                  <>
+                    <iframe
+                      src={fbEmbedUrl}
+                      className="absolute inset-0 w-full h-full"
+                      style={{border:'none',overflow:'hidden'}}
+                      scrolling="no"
+                      frameBorder="0"
+                      allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                      allowFullScreen={true}
+                      title="Facebook Video"
+                    />
+                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] text-white/70 border border-white/10 max-w-[210px]">
+                      Arrow key skipping is only available for MP4 / HLS sources right now.
+                    </div>
+                  </>
                 )}
                 {fbReady && !fbEmbedUrl && (
                   <div className="text-xs text-gray-300 p-4 text-center">Embed unavailable. Video may be private or region-locked.</div>
+                )}
+              </div>
+            ) : videoType === 'streamtape' ? (
+              <div className="flex flex-col gap-4 items-center justify-center w-full h-full text-sm text-gray-300 p-6 text-center">
+                <div>
+                  {streamtapeResolving ? 'Resolving Streamtape video…' : (streamtapeFallback ? 'Using fallback embed…' : 'Preparing Streamtape video…')}
+                </div>
+                {!streamtapeResolving && !streamtapeFallback && (
+                  <div className="flex gap-3 flex-wrap justify-center">
+                    <button
+                      onClick={() => setStreamtapeRetryToken(t=>t+1)}
+                      className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs"
+                    >Retry Resolve</button>
+                    {streamtapeId && (
+                      <button
+                        onClick={() => setStreamtapeFallback(true)}
+                        className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs"
+                      >Use Embed Now</button>
+                    )}
+                    <a
+                      href={rawSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs"
+                    >Open Original</a>
+                  </div>
                 )}
               </div>
             ) : videoType === 'generic' ? (
@@ -363,9 +467,24 @@ export default function WatchPage() {
                 src={resolvedSrc}
                 type={videoType === 'hls' ? 'hls' : 'mp4'}
                 poster="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=1200&q=60"
-                onError={(msg)=>setError(msg)}
+                onError={handlePlayerError}
                 debug={process.env.NODE_ENV === 'development'}
               />
+            )}
+            {/* Streamtape fallback embed (shown only if direct mp4 failed) */}
+            {streamtapeFallback && streamtapeId && (
+              <div className="absolute inset-0 w-full h-full bg-black">
+                <iframe
+                  src={`https://streamtape.com/e/${streamtapeId}/`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  title="Streamtape Fallback"
+                  allow="autoplay; picture-in-picture"
+                />
+                <div className="absolute top-2 left-2 bg-black/60 text-white/70 text-[10px] px-2 py-1 rounded border border-white/10">
+                  Fallback embed (skip keys may not work)
+                </div>
+              </div>
             )}
           </div>
         )}

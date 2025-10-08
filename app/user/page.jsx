@@ -306,49 +306,21 @@ export default function UserPage() {
   // Convert to array for pagination
   const courses = useMemo(() => Object.entries(groupedContent), [groupedContent]);
   
-  // Modified handleLinkClick function for Linkvertise-style flow
+  // DIRECT WATCH FLOW (Progress steps archived)
+  // Previous gated flow commented out for future reference.
+  // const storeUrlAndRedirectProgress = (url) => { ... };
   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+    // Save (optional) lightweight progress record still
     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
-    const prevLinkKey = linkIndex > 0 ? `${courseName}_part${partIndex}_link${linkIndex - 1}` : null;
-    
-    // Check if previous link has been accessed
-    if (prevLinkKey && !linkProgress[prevLinkKey]) {
-      alert("Please complete the previous resource first!");
-      return;
+    setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+    if (user) {
+      const updated = { ...linkProgress, [linkKey]: true };
+      localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updated));
     }
-    
-    // Check if this link is already unlocked
-    if (linkProgress[linkKey]) {
-      // Link is already unlocked, store the URL and redirect to step 2
-      storeUrlAndRedirect(url);
-      return;
-    }
-    
-    // If this is the first link or previous is completed, unlock it
-    if (linkIndex === 0 || linkProgress[prevLinkKey]) {
-      // Mark current link as completed
-      setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
-      
-      // Save to localStorage immediately
-      if (user) {
-        const updatedProgress = {...linkProgress, [linkKey]: true};
-        localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
-      }
-      
-      // Store the URL and redirect to step 2
-      storeUrlAndRedirect(url);
-    }
-  };
-  
-  // New function to store URL and redirect to progress page
-  const storeUrlAndRedirect = (url) => {
-    // Store the URL with timestamp for expiration
-    const data = {
-      url: url,
-      timestamp: Date.now()
-    };
+    // Store video metadata for watch page
+    const data = { url, timestamp: Date.now() };
     localStorage.setItem('tempDownloadUrl', JSON.stringify(data));
-    router.push('/progress');
+    router.push('/watch');
   };
   
   const openLink = (url) => {
