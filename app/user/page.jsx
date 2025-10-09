@@ -139,7 +139,7 @@ const BackgroundAnimation = () => (
 );
 
 const SearchBar = ({ searchQuery, setSearchQuery, searchFocused, setSearchFocused }) => (
-  <div className="relative w-full sm:w-80">
+  <div className="relative w-full sm:w-72">
     <div className="relative">
       <input
         type="text"
@@ -148,7 +148,7 @@ const SearchBar = ({ searchQuery, setSearchQuery, searchFocused, setSearchFocuse
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setSearchFocused(false)}
         placeholder="Search courses or videos..."
-        className={`w-full px-4 py-3 pr-10 rounded-2xl bg-gray-900/80 backdrop-blur-sm border-2 transition-all duration-300 ${
+        className={`w-full px-3 py-2.5 pr-9 rounded-xl bg-gray-900/80 backdrop-blur-sm border transition-all duration-300 ${
           searchFocused 
             ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
             : 'border-gray-700 hover:border-gray-600'
@@ -176,24 +176,24 @@ const SearchBar = ({ searchQuery, setSearchQuery, searchFocused, setSearchFocuse
 );
 
 const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
-  <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-5">
     <button
       onClick={onPrev}
       disabled={currentPage === 0}
-      className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[140px] shadow-lg backdrop-blur-sm ${
+      className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === 0 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
           : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-400 hover:to-purple-500 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-1 border border-blue-400/50 hover:border-blue-300/70'
       }`}
     >
-      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
       </svg>
       Previous
     </button>
     
     <div className="text-center">
-      <span className="text-lg font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-sm">
+      <span className="text-base font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-sm">
         {currentPage + 1} of {totalPages}
       </span>
       <div className="text-xs text-gray-200 mt-1 drop-shadow-sm">Courses</div>
@@ -202,14 +202,14 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
     <button
       onClick={onNext}
       disabled={currentPage === totalPages - 1}
-      className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[140px] shadow-lg backdrop-blur-sm ${
+      className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === totalPages - 1 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
           : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-400 hover:to-purple-500 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-1 border border-blue-400/50 hover:border-blue-300/70'
       }`}
     >
       Next
-      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
       </svg>
     </button>
@@ -219,8 +219,8 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
 const ProgressIndicator = ({ isUnlocked, canAccess }) => {
   if (isUnlocked) {
     return (
-      <span className="text-green-300 flex items-center justify-center font-bold text-sm drop-shadow-sm">
-        <svg className="w-5 h-5 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+      <span className="text-green-300 flex items-center justify-center font-semibold text-xs drop-shadow-sm">
+        <svg className="w-4 h-4 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
         </svg>
         Completed
@@ -228,8 +228,8 @@ const ProgressIndicator = ({ isUnlocked, canAccess }) => {
     );
   } else if (canAccess) {
     return (
-      <span className="text-blue-200 flex items-center justify-center font-bold text-sm drop-shadow-sm">
-        <svg className="w-5 h-5 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+      <span className="text-blue-200 flex items-center justify-center font-semibold text-xs drop-shadow-sm">
+        <svg className="w-4 h-4 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
         </svg>
         Ready to access
@@ -237,8 +237,8 @@ const ProgressIndicator = ({ isUnlocked, canAccess }) => {
     );
   } else {
     return (
-      <span className="text-gray-300 flex items-center justify-center font-bold text-sm drop-shadow-sm">
-        <svg className="w-5 h-5 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+      <span className="text-gray-300 flex items-center justify-center font-semibold text-xs drop-shadow-sm">
+        <svg className="w-4 h-4 mr-1 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
         </svg>
         Complete previous first
@@ -269,6 +269,7 @@ export default function UserPage() {
   const [userLocation, setUserLocation] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [clickedKey, setClickedKey] = useState(null);
 
   // Location tracking
   useEffect(() => {
@@ -522,6 +523,9 @@ export default function UserPage() {
   // Link handling
   const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
+    // Prevent multiple rapid clicks while animating
+    if (clickedKey) return;
+    setClickedKey(linkKey);
     setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
     if (user) {
       const updated = { ...linkProgress, [linkKey]: true };
@@ -529,7 +533,10 @@ export default function UserPage() {
     }
     const data = { url, timestamp: Date.now() };
     localStorage.setItem('tempDownloadUrl', JSON.stringify(data));
-    router.push('/watch');
+    // Small delay to let the click animation play before navigating
+    setTimeout(() => {
+      router.push('/watch');
+    }, 420);
   };
 
   if (isLoading) return <LoadingSpinner />;
@@ -541,25 +548,25 @@ export default function UserPage() {
       <div className="relative z-10 max-w-7xl mx-auto">
         {/* Enhanced Header */}
         <header className="mb-8 sm:mb-12">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 mb-7">
+            <div className="flex items-center gap-3.5">
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-20 blur-sm"></div>
+                <div className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-20 blur-sm"></div>
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                   Welcome back
                 </h1>
-                <p className="text-gray-400 text-sm">{user?.email}</p>
+                <p className="text-gray-400 text-xs">{user?.email}</p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            <div className="flex flex-col sm:flex-row gap-2.5 w-full lg:w-auto">
               <SearchBar 
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
@@ -567,10 +574,10 @@ export default function UserPage() {
                 setSearchFocused={setSearchFocused}
               />
               
-              <div className="flex gap-3">
+              <div className="flex gap-2.5">
                 <button
                   onClick={goHome}
-                  className="px-4 py-3 bg-gray-900/80 border border-gray-700 hover:bg-gray-800 text-white rounded-xl flex items-center justify-center gap-2 transition-all duration-300 hover:border-gray-600"
+                  className="px-3 py-2.5 bg-gray-900/80 border border-gray-700 hover:bg-gray-800 text-white rounded-lg flex items-center justify-center gap-2 transition-all duration-300 hover:border-gray-600"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -581,7 +588,7 @@ export default function UserPage() {
                 <button
                   onClick={() => fetchContent(true)}
                   disabled={isRefreshing}
-                  className="px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:from-blue-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:from-blue-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isRefreshing ? (
                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -598,7 +605,7 @@ export default function UserPage() {
 
                 <button
                   onClick={handleLogout}
-                  className="px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:from-red-700 hover:to-red-800 transition-all duration-300 transform hover:scale-105"
+                  className="px-3 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:from-red-700 hover:to-red-800 transition-all duration-300 transform hover:scale-105"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -624,13 +631,13 @@ export default function UserPage() {
         {/* Main Content */}
         <main>
           {courses.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-24 h-24 mx-auto mb-6 bg-gray-800 rounded-2xl flex items-center justify-center">
-                <svg className="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center py-12">
+              <div className="w-20 h-20 mx-auto mb-5 bg-gray-800 rounded-2xl flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold mb-3 text-gray-300">
+              <h2 className="text-xl font-bold mb-2.5 text-gray-300">
                 {searchQuery ? "No matches found" : "No content available"}
               </h2>
               <p className="text-gray-500 max-w-md mx-auto">
@@ -661,14 +668,14 @@ export default function UserPage() {
               {/* Current Course */}
               {courses[currentPage] && (
                 <div className="course-section animate-fadeIn">
-                  <div className="text-center mb-8">
-                    <h2 className="text-2xl sm:text-3xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                  <div className="text-center mb-7">
+                    <h2 className="text-xl sm:text-2xl font-bold mb-3.5 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                       {courses[currentPage][0]}
                     </h2>
                     <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
                   </div>
                   
-                  <div className="grid gap-6">
+                  <div className="grid gap-3.5 sm:gap-4">
                     {courses[currentPage][1].map((part, partIndex) => {
                       const sections = organizeFieldsIntoSections(
                         part.fields, 
@@ -676,9 +683,9 @@ export default function UserPage() {
                       );
                       
                       return (
-                        <div key={part.id} className="bg-gray-900/50 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 shadow-2xl">
+                        <div key={part.id} className="bg-gray-900/50 backdrop-blur-lg rounded-xl p-3 sm:p-4 border border-gray-800 shadow-xl">
                           {/* Enhanced Part Image */}
-                          <div className="mb-6 relative group overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900">
+                          <div className="mb-3 sm:mb-3.5 relative group overflow-hidden rounded-xl bg-gradient-to-br from-gray-800 to-gray-900">
                             <div className="aspect-video w-full overflow-hidden">
                               <img 
                                 src={part.imageUrl || "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"} 
@@ -687,9 +694,9 @@ export default function UserPage() {
                                 loading="lazy"
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                              <div className="absolute bottom-4 left-4 right-4 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 opacity-0 group-hover:opacity-100">
-                                <h4 className="text-white font-semibold text-lg mb-1">Part {partIndex + 1}</h4>
-                                <p className="text-gray-200 text-sm">
+                              <div className="absolute bottom-3 left-3 right-3 transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 opacity-0 group-hover:opacity-100">
+                                <h4 className="text-white font-semibold text-base mb-0.5">Part {partIndex + 1}</h4>
+                                <p className="text-gray-200 text-xs">
                                   {part.fields?.filter(f => f.trim() && f.startsWith('http')).length || 0} videos • 
                                   {part.fields?.filter(f => f.trim() && !f.startsWith('http')).length || 0} resources
                                 </p>
@@ -697,8 +704,8 @@ export default function UserPage() {
                             </div>
                           </div>
                           
-                          <div className="mb-4">
-                            <h3 className="text-lg font-semibold mb-4 text-purple-400 flex items-center gap-2">
+                          <div className="mb-3 sm:mb-4">
+                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-purple-400 flex items-center gap-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -711,14 +718,14 @@ export default function UserPage() {
                               const isExpanded = sectionIndex === 0 ? true : expandedSections[sectionKey];
                               
                               return (
-                                <div key={sectionIndex} className={`mb-6 overflow-hidden transition-all duration-300 ${
+                                <div key={sectionIndex} className={`mb-2.5 sm:mb-3 overflow-hidden transition-all duration-300 ${
                                   sectionIndex === 0 
-                                    ? 'border-2 border-blue-400/60 rounded-2xl bg-gradient-to-br from-blue-500/10 via-gray-700/60 to-purple-500/10 shadow-xl' 
-                                    : 'border-2 border-gray-500/40 rounded-xl bg-gray-700/40 hover:bg-gray-600/50 hover:border-gray-400/60'
+                                    ? 'border border-blue-400/60 rounded-xl bg-gradient-to-br from-blue-500/10 via-gray-700/60 to-purple-500/10 shadow' 
+                                    : 'border border-gray-500/40 rounded-lg bg-gray-700/40 hover:bg-gray-600/50 hover:border-gray-400/60'
                                 }`}>
                                   {/* Enhanced Section Header */}
                                   <div 
-                                    className={`p-5 flex justify-between items-center cursor-pointer transition-all duration-300 ${
+                                    className={`p-2 sm:p-3 flex justify-between items-center cursor-pointer transition-all duration-200 ${
                                       sectionIndex === 0
                                         ? isExpanded 
                                           ? 'bg-gradient-to-r from-blue-500/25 via-purple-500/25 to-teal-500/25' 
@@ -729,8 +736,8 @@ export default function UserPage() {
                                     }`}
                                     onClick={() => toggleSection(sectionKey)}
                                   >
-                                    <div className="flex items-center gap-4">
-                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center relative overflow-hidden shadow-lg ${
+                                    <div className="flex items-center gap-2.5 sm:gap-3">
+                                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center relative overflow-hidden shadow ${
                                         sectionIndex === 0
                                           ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-teal-500' 
                                           : isExpanded 
@@ -748,7 +755,7 @@ export default function UserPage() {
                                         )}
                                       </div>
                                       <div>
-                                        <h4 className={`font-bold text-lg ${
+                                        <h4 className={`font-semibold text-sm sm:text-base ${
                                           sectionIndex === 0 ? 'text-white' : 'text-gray-100'
                                         }`}>
                                           Section {sectionIndex + 1}
@@ -758,7 +765,7 @@ export default function UserPage() {
                                             </span>
                                           )}
                                         </h4>
-                                        <p className={`text-sm font-medium ${
+                                        <p className={`text-[11px] sm:text-xs font-medium ${
                                           sectionIndex === 0 ? 'text-blue-100' : 'text-gray-300'
                                         }`}>
                                           {sectionFields.length} resources available
@@ -785,12 +792,12 @@ export default function UserPage() {
                                   
                                   {/* Enhanced Section Content */}
                                   {isExpanded && (
-                                    <div className={`p-5 ${
+                                    <div className={`p-2 sm:p-3 ${
                                       sectionIndex === 0 
                                         ? 'bg-gradient-to-b from-gray-700/60 to-gray-800/60' 
                                         : 'bg-gray-800/40'
                                     }`}>
-                                      <div className="grid gap-4">
+                                      <div className="grid gap-1.5 sm:gap-2">
                                         {sectionFields.map((field, index) => {
                                           const globalIndex = part.fields.indexOf(field);
                                           const isUrl = field.startsWith('http');
@@ -805,45 +812,55 @@ export default function UserPage() {
                                                 <button
                                                   onClick={() => handleLinkClick(courses[currentPage][0], partIndex, globalIndex, field)}
                                                   disabled={!canAccess}
-                                                  className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-300 transform shadow-lg backdrop-blur-sm ${
+                                                  className={`w-full text-left p-2 sm:p-2.5 rounded-md border transition-all duration-150 transform shadow-sm relative overflow-hidden ${
                                                     isUnlocked 
-                                                      ? "border-green-400/70 bg-gradient-to-br from-green-500/20 via-green-400/15 to-green-600/20 hover:bg-gradient-to-br hover:from-green-500/30 hover:to-green-600/30 hover:border-green-400/90 hover:scale-105 hover:shadow-green-500/25"
+                                                      ? "border-green-400/70 bg-gradient-to-br from-green-500/15 via-green-400/10 to-green-600/15 hover:from-green-500/25 hover:to-green-600/25 hover:border-green-400/90 hover:-translate-y-0.5"
                                                       : canAccess
-                                                        ? "border-blue-400/70 bg-gradient-to-br from-blue-500/20 via-blue-400/15 to-purple-600/20 hover:bg-gradient-to-br hover:from-blue-500/30 hover:to-purple-600/30 hover:border-blue-400/90 hover:scale-105 hover:shadow-blue-500/25"
-                                                        : "border-gray-500/50 bg-gradient-to-br from-gray-700/40 to-gray-800/40 text-gray-400 cursor-not-allowed"
-                                                  } hover:shadow-xl`}
+                                                        ? "border-blue-400/70 bg-gradient-to-br from-blue-500/15 via-blue-400/10 to-purple-600/15 hover:from-blue-500/25 hover:to-purple-600/25 hover:border-blue-400/90 hover:-translate-y-0.5"
+                                                        : "border-gray-600 bg-gray-800/40 text-gray-400 cursor-not-allowed"
+                                                  } ${clickedKey === linkKey ? 'ring-2 ring-blue-400/70 animate-pulse' : ''}`}
                                                 >
                                                   <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-lg ${
+                                                    <div className="flex items-center gap-2 sm:gap-2.5">
+                                                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md flex items-center justify-center shadow ${
                                                         isUnlocked 
-                                                          ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/30' 
+                                                          ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/20' 
                                                           : canAccess 
-                                                            ? 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/30' 
-                                                            : 'bg-gradient-to-br from-gray-600 to-gray-700 shadow-gray-600/30'
+                                                            ? 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/20' 
+                                                            : 'bg-gradient-to-br from-gray-600 to-gray-700 shadow-gray-600/20'
                                                       }`}>
-                                                        <svg className="w-5 h-5 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                        </svg>
+                                                        {clickedKey === linkKey ? (
+                                                          <svg className="w-3.5 h-3.5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+                                                            <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"></path>
+                                                          </svg>
+                                                        ) : (
+                                                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                          </svg>
+                                                        )}
                                                       </div>
                                                       <div>
-                                                        <div className="font-semibold text-white drop-shadow-sm">
-                                                          Section {sectionIndex + 1} - Part {index + 1}
+                                                        <div className="font-medium text-white text-xs sm:text-sm">
+                                                          Part {index + 1}
                                                         </div>
-                                                        <div className="text-sm text-gray-100 opacity-90 drop-shadow-sm">
-                                                          Click to start learning
-                                                        </div>
+                                                        {/* Secondary line intentionally removed for compactness */}
                                                       </div>
                                                     </div>
-                                                    <ProgressIndicator isUnlocked={isUnlocked} canAccess={canAccess} />
+                                                    <div className={`${clickedKey === linkKey ? 'opacity-0 scale-95' : 'opacity-100'} transition-all duration-200`}>
+                                                      <ProgressIndicator isUnlocked={isUnlocked} canAccess={canAccess} />
+                                                    </div>
                                                   </div>
+                                                  {clickedKey === linkKey && (
+                                                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-600/10"></span>
+                                                  )}
                                                 </button>
                                               </div>
                                             );
                                           } else {
                                             return (
-                                              <div key={globalIndex} className="p-4 rounded-xl bg-gradient-to-br from-gray-700/50 to-gray-800/50 border border-gray-500/50 shadow-lg backdrop-blur-sm">
-                                                <p className="text-white font-medium drop-shadow-sm">{field}</p>
+                                              <div key={globalIndex} className="p-2.5 sm:p-3 rounded-lg bg-gradient-to-br from-gray-700/40 to-gray-800/40 border border-gray-600/60 shadow">
+                                                <p className="text-white font-medium text-sm sm:text-base">{field}</p>
                                               </div>
                                             );
                                           }
