@@ -344,9 +344,9 @@ export default function WatchPage() {
           {isAdminPreview && (
             <span className="px-2 py-1 text-xs rounded bg-purple-700/40 border border-purple-500 text-purple-200">Admin Preview</span>
           )}
-          {videoType && (
+          {/* {videoType && (
             <span className="px-2 py-1 text-xs rounded bg-gray-700 text-gray-300 border border-gray-600 capitalize">{videoType}</span>
-          )}
+          )} */}
           <button onClick={handleExit} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">Exit</button>
         </div>
       </header>
@@ -481,9 +481,9 @@ export default function WatchPage() {
                   title="Streamtape Fallback"
                   allow="autoplay; picture-in-picture"
                 />
-                <div className="absolute top-2 left-2 bg-black/60 text-white/70 text-[10px] px-2 py-1 rounded border border-white/10">
+                {/* <div className="absolute top-2 left-2 bg-black/60 text-white/70 text-[10px] px-2 py-1 rounded border border-white/10">
                   Fallback embed (skip keys may not work)
-                </div>
+                </div> */}
               </div>
             )}
           </div>
@@ -493,14 +493,14 @@ export default function WatchPage() {
         )}
 
         {/* Debug Panel (optional; remove in production) */}
-        {process.env.NODE_ENV === 'development' && debug.length > 0 && (
+        {/* {process.env.NODE_ENV === 'development' && debug.length > 0 && (
           <details className="mt-8 w-full max-w-5xl bg-gray-900 border border-gray-800 rounded p-4 text-xs text-gray-300 space-y-1">
             <summary className="cursor-pointer font-medium">Debug Info</summary>
             {debug.map((l, i) => (<div key={i}>{l}</div>))}
             <div className="pt-2"><span className="text-gray-500">Raw:</span> {rawSrc}</div>
             <div><span className="text-gray-500">Resolved:</span> {resolvedSrc}</div>
           </details>
-        )}
+        )} */}
       </main>
 
       <footer className="p-4 text-center text-[10px] text-gray-500 border-t border-gray-800">Secure Streaming • HLS / MP4 / YouTube prototype</footer>

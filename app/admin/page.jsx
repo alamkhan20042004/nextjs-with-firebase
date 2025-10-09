@@ -212,6 +212,30 @@ export default function AdminPage() {
     return userData.lastPageVisited || "Home";
   };
 
+  // Format a display time string (no words like "ago")
+  const formatDisplayTime = (date) => {
+    if (!date) return '—';
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    if (sameDay) return time; // e.g., 05:18 PM
+    const datePart = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); // e.g., Oct 9
+    return `${datePart} • ${time}`;
+  };
+
+  // Badge color system by online/recency
+  const getRecencyBadge = (online, lastActive) => {
+    if (!lastActive && !online) return { label: '—', cls: 'bg-gray-200 text-gray-700 border border-gray-300' };
+    const now = new Date();
+    const effective = lastActive || now;
+    const hours = (now - effective) / 3600000;
+    const label = formatDisplayTime(effective);
+    if (online) return { label, cls: 'bg-green-100 text-green-800 border border-green-300 shadow-sm' };
+    if (hours < 24) return { label, cls: 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm' };
+    if (hours < 24 * 7) return { label, cls: 'bg-sky-100 text-sky-900 border border-sky-300 shadow-sm' };
+    return { label, cls: 'bg-gray-300 text-gray-800 border border-gray-400 shadow-sm' };
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
@@ -313,41 +337,59 @@ export default function AdminPage() {
                     <th className="py-3 px-4 text-left">#</th>
                     <th className="py-3 px-4 text-left">Email</th>
                     <th className="py-3 px-4 text-left">Name</th>
-                    <th className="py-3 px-4 text-left">Joined Date</th>
-                    <th className="py-3 px-4 text-left">Status</th>
-                    <th className="py-3 px-4 text-left">Current Page</th>
-                    <th className="py-3 px-4 text-left">Time Spent</th>
+                    <th className="py-3 px-4 text-left">Joined</th>
+                    <th className="py-3 px-4 text-left">Online</th>
+                    <th className="py-3 px-4 text-left">Last Active</th>
+                    <th className="py-3 px-4 text-left">Page</th>
                     <th className="py-3 px-4 text-left">Location</th>
+                    <th className="py-3 px-4 text-left">TZ</th>
+                    <th className="py-3 px-4 text-left">Agent</th>
                     <th className="py-3 px-4 text-left">Provider</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((userData, index) => (
-                    <tr key={userData.id} className="border-b border-gray-700 hover:bg-gray-750">
-                      <td className="py-3 px-4">{index + 1}</td>
-                      <td className="py-3 px-4">{userData.email}</td>
-                      <td className="py-3 px-4">{userData.name || 'N/A'}</td>
-                      <td className="py-3 px-4">
-                        {userData.createdAt ? new Date(userData.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          onlineUsers.has(userData.id) 
-                            ? "bg-green-100 text-green-800" 
-                            : "bg-red-100 text-red-800"
-                        }`}>
-                          {onlineUsers.has(userData.id) ? "Online" : "Offline"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">{getCurrentPage(userData)}</td>
-                      <td className="py-3 px-4">{calculateTimeSpent(userData)}</td>
-                      <td className="py-3 px-4">
-                        {userData.location || userData.country || 
-                         (userData.ipLocation ? JSON.stringify(userData.ipLocation) : 'N/A')}
-                      </td>
-                      <td className="py-3 px-4">{userData.provider || 'Google'}</td>
-                    </tr>
-                  ))}
+                  {users.map((userData, index) => {
+                    const joined = userData.createdAt?.seconds ? new Date(userData.createdAt.seconds * 1000) : (userData.createdAt ? new Date(userData.createdAt) : null);
+                    const lastActive = userData.lastActive?.seconds ? new Date(userData.lastActive.seconds * 1000) : (userData.lastActive ? new Date(userData.lastActive) : null);
+                    const online = onlineUsers.has(userData.id) || userData.isOnline;
+                    const ip = userData.ipLocation;
+                    const locText = ip ? `${ip.city || ''}${ip.city && ip.country ? ', ' : ''}${ip.country || ''}` : (userData.location || userData.country || 'N/A');
+                    const mapLink = ip?.latitude && ip?.longitude ? `https://www.google.com/maps?q=${ip.latitude},${ip.longitude}` : null;
+                    return (
+                      <tr key={userData.id} className="border-b border-gray-700 hover:bg-gray-750">
+                        <td className="py-3 px-4">{index + 1}</td>
+                        <td className="py-3 px-4 max-w-xs truncate" title={userData.email}>{userData.email}</td>
+                        <td className="py-3 px-4 max-w-[160px] truncate" title={userData.name || 'N/A'}>{userData.name || 'N/A'}</td>
+                        <td className="py-3 px-4">{joined ? joined.toLocaleDateString() : 'N/A'}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${online ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                            {online ? 'Online' : 'Offline'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {(() => { const b = getRecencyBadge(online, lastActive); return (
+                            <span
+                              title={lastActive ? lastActive.toLocaleString() : ''}
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${b.cls}`}
+                            >
+                              {b.label}
+                            </span>
+                          );})()}
+                        </td>
+                        <td className="py-3 px-4">{userData.lastPageVisited || getCurrentPage(userData)}</td>
+                        <td className="py-3 px-4">
+                          {mapLink ? (
+                            <a className="text-blue-400 hover:underline" href={mapLink} target="_blank" rel="noreferrer">{locText}</a>
+                          ) : (
+                            locText
+                          )}
+                        </td>
+                        <td className="py-3 px-4">{userData.timezone || ip?.timezone || '—'}</td>
+                        <td className="py-3 px-4 max-w-[220px] truncate" title={userData.userAgent || '—'}>{userData.userAgent || '—'}</td>
+                        <td className="py-3 px-4">{userData.provider || 'Google'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

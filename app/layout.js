@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header/page";
+import ClientPresence from "@/components/ClientPresence";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,7 +50,9 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
       >
-        {/* ================= HEADER ================= */}
+  {/* Presence beacon (client-only) */}
+  <ClientPresence />
+  {/* ================= HEADER ================= */}
         <Header className="bg-black text-white shadow-md sticky top-0 z-50" />
         {/* ========================================== */}
 
