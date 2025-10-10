@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
     onError(message)
     debug (optional boolean) -> renders debug panel
 */
-export default function VideoPlayer({ src, type, poster, onError, debug }) {
+export default function VideoPlayer({ src, type, poster, onError, debug, lowBandwidth = false, onEnded }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const hlsInstanceRef = useRef(null);
@@ -95,7 +95,13 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
           const HlsModule = await import('hls.js');
           const Hls = HlsModule.default;
           if (Hls.isSupported()) {
-            hlsInstanceRef.current = new Hls();
+            hlsInstanceRef.current = new Hls({
+              // Try to lower initial bitrate for slow internet
+              startLevel: lowBandwidth ? hlsInstanceRef.current?.levels?.length - 1 ?? 0 : -1,
+              capLevelOnFPSDrop: true,
+              maxBufferLength: lowBandwidth ? 15 : 60,
+              maxMaxBufferLength: lowBandwidth ? 30 : 120,
+            });
             hlsInstanceRef.current.loadSource(src);
             hlsInstanceRef.current.attachMedia(el);
             hlsInstanceRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -103,6 +109,12 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
               if (hlsInstanceRef.current && Array.isArray(hlsInstanceRef.current.levels)) {
                 const levels = hlsInstanceRef.current.levels.map((l, idx) => ({ index: idx, height: l.height || (l.attrs && l.attrs.RESOLUTION ? parseInt(l.attrs.RESOLUTION.split('x')[1]) : undefined) }));
                 setHlsLevels(levels);
+                if (lowBandwidth) {
+                  // Force the lowest available level for slow connections
+                  hlsInstanceRef.current.currentLevel = 0;
+                  setHlsLevel(0);
+                  pushLog('Low-bandwidth mode: forced lowest HLS level');
+                }
                 // Apply persisted quality if exists
                 const prefs = loadPrefs();
                 if (prefs && prefs.hlsQuality && prefs.hlsQuality !== 'auto') {
@@ -166,6 +178,8 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
 
   const handleManualPlay = () => {
     const el = videoRef.current; if (!el) return;
+    // Unmute if needed and try play
+    if (el.muted && (volume > 0)) el.muted = false;
     el.play().catch(err => onError?.('Cannot start playback: ' + err.message));
   };
 
@@ -188,7 +202,7 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
         } catch {}
       }
     };
-    const onTime = () => setCurrentTime(el.currentTime || 0);
+  const onTime = () => setCurrentTime(el.currentTime || 0);
     const onProgress = () => {
       try {
         if (el.buffered.length) {
@@ -204,7 +218,8 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
   el.addEventListener('loadedmetadata', onLoadedPatched);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('progress', onProgress);
-    el.addEventListener('volumechange', onVolume);
+  el.addEventListener('volumechange', onVolume);
+  el.addEventListener('ended', () => { try { onEnded?.(); } catch {} });
     return () => {
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
@@ -212,6 +227,7 @@ export default function VideoPlayer({ src, type, poster, onError, debug }) {
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('progress', onProgress);
       el.removeEventListener('volumechange', onVolume);
+      el.removeEventListener('ended', () => {});
     };
   }, [type]);
 

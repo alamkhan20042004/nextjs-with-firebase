@@ -521,7 +521,7 @@ export default function UserPage() {
   };
 
   // Link handling
-  const handleLinkClick = (courseName, partIndex, linkIndex, url) => {
+  const handleLinkClick = (courseName, partIndex, linkIndex, url, allFields, posterUrl) => {
     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
     // Prevent multiple rapid clicks while animating
     if (clickedKey) return;
@@ -533,6 +533,19 @@ export default function UserPage() {
     }
     const data = { url, timestamp: Date.now() };
     localStorage.setItem('tempDownloadUrl', JSON.stringify(data));
+    try {
+      const list = (allFields || []).filter(f => typeof f === 'string' && f.trim().startsWith('http')).map((u) => ({ url: u.trim() }));
+      const currentIndex = Math.max(0, list.findIndex(i => i.url === url));
+      const ctx = {
+        course: courseName,
+        partIndex,
+        currentIndex,
+        list,
+        poster: posterUrl || "",
+        timestamp: Date.now()
+      };
+      localStorage.setItem('watchContext', JSON.stringify(ctx));
+    } catch {}
     // Small delay to let the click animation play before navigating
     setTimeout(() => {
       router.push('/watch');
@@ -810,7 +823,7 @@ export default function UserPage() {
                                             return (
                                               <div key={globalIndex} className="group">
                                                 <button
-                                                  onClick={() => handleLinkClick(courses[currentPage][0], partIndex, globalIndex, field)}
+                                                  onClick={() => handleLinkClick(courses[currentPage][0], partIndex, globalIndex, field, part.fields, part.imageUrl)}
                                                   disabled={!canAccess}
                                                   className={`w-full text-left p-2 sm:p-2.5 rounded-md border transition-all duration-150 transform shadow-sm relative overflow-hidden ${
                                                     isUnlocked 

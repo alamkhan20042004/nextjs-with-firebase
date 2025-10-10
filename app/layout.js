@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header/page";
 import ClientPresence from "@/components/ClientPresence";
+import GlobalHotkeys from "@/components/GlobalHotkeys";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,12 +53,14 @@ export default function RootLayout({ children }) {
       >
   {/* Presence beacon (client-only) */}
   <ClientPresence />
+  {/* Global keyboard shortcuts (F for fullscreen) */}
+  <GlobalHotkeys />
   {/* ================= HEADER ================= */}
         <Header className="bg-black text-white shadow-md sticky top-0 z-50" />
         {/* ========================================== */}
 
         {/* Main content wrapper */}
-        <main className="min-h-screen w-full flex flex-col p-4">
+        <main className="min-h-screen w-full flex flex-col p-4" data-prefer-fullscreen>
           {children}
         </main>
 

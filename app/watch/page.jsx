@@ -27,6 +27,13 @@ export default function WatchPage() {
   const [fbReady, setFbReady] = useState(false);
   const [fbEmbedUrl, setFbEmbedUrl] = useState("");
   const [fbThumb, setFbThumb] = useState(""); // Will attempt simple placeholder (FB doesn't give easy thumb without API)
+  // Playlist context + poster
+  const [playlist, setPlaylist] = useState({ list: [], currentIndex: 0, poster: "" });
+  const [lowBandwidth, setLowBandwidth] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(false);
+  const [hideBranding, setHideBranding] = useState(true);
+  const [autoAdvance, setAutoAdvance] = useState(true);
   // Streamtape support
   const [streamtapeId, setStreamtapeId] = useState("");
   const [streamtapeResolving, setStreamtapeResolving] = useState(false);
@@ -34,7 +41,23 @@ export default function WatchPage() {
   const [streamtapeRetryToken, setStreamtapeRetryToken] = useState(0);
   const hlsInstanceRef = useRef(null);
   const timeoutRef = useRef(null);
+  const playerContainerRef = useRef(null);
   // Custom player logic moved into VideoPlayer component
+  const toggleFullscreen = useCallback(() => {
+    const el = playerContainerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
+  }, []);
+  // Responsive flag for small screens (tailwind 'sm' equivalent ~640px)
+  const [smallScreen, setSmallScreen] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 640px)');
+    const apply = () => setSmallScreen(!!mq.matches);
+    try { mq.addEventListener('change', apply); } catch { mq.addListener(apply); }
+    apply();
+    return () => { try { mq.removeEventListener('change', apply); } catch { mq.removeListener(apply); } };
+  }, []);
 
   const pushDebug = (msg) => setDebug(d => [...d, `[${new Date().toISOString()}] ${msg}`]);
 
@@ -83,6 +106,45 @@ export default function WatchPage() {
       const clean = finalUrl.split('?')[0];
       const encoded = encodeURIComponent(clean);
       finalUrl = `https://www.facebook.com/plugins/video.php?href=${encoded}&show_text=0&autoplay=1&mute=0&allowfullscreen=true`;
+      return { type, finalUrl };
+    }
+
+    // Rumble support: convert to embed URL and enable autoplay
+    // Examples:
+    //  - https://rumble.com/embed/v6t3exv/?pub=XXXX -> ensure autoplay=2
+    //  - https://rumble.com/v6t3exv-some-title.html -> https://rumble.com/embed/v6t3exv/?autoplay=2
+    const rumbleEmbedMatch = finalUrl.match(/rumble\.com\/embed\/([A-Za-z0-9]+)\/?/i);
+    if (rumbleEmbedMatch) {
+      type = 'rumble';
+      const id = rumbleEmbedMatch[1];
+      const base = `https://rumble.com/embed/${id}/`;
+      finalUrl = base + (finalUrl.includes('?') ? '&' : '?') + 'autoplay=2';
+      return { type, finalUrl };
+    }
+    const rumblePageMatch = finalUrl.match(/rumble\.com\/v([A-Za-z0-9]+)/i);
+    if (rumblePageMatch) {
+      type = 'rumble';
+      const id = rumblePageMatch[1];
+      finalUrl = `https://rumble.com/embed/v${id}/?autoplay=2`;
+      return { type, finalUrl };
+    }
+
+    // Odysee support: transform regular content links into embeddable form
+    // Examples:
+    //  - https://odysee.com/@Channel:abc/video:123 -> https://odysee.com/$/embed/@Channel:abc/video:123?autoplay=1
+    //  - Already-embedded links pass through, ensuring autoplay
+    const odyseeEmbedMatch = finalUrl.match(/odysee\.com\/$\/embed\/([^?#]+)/i);
+    if (odyseeEmbedMatch) {
+      type = 'odysee';
+      const base = `https://odysee.com/$/embed/${odyseeEmbedMatch[1]}`;
+      finalUrl = base + (finalUrl.includes('?') ? '&' : '?') + 'autoplay=1';
+      return { type, finalUrl };
+    }
+    const odyseeMatch = finalUrl.match(/odysee\.com\/([^?#]+)/i);
+    if (odyseeMatch) {
+      const path = odyseeMatch[1].replace(/^\//, '');
+      type = 'odysee';
+      finalUrl = `https://odysee.com/$/embed/${path}?autoplay=1`;
       return { type, finalUrl };
     }
 
@@ -163,6 +225,17 @@ export default function WatchPage() {
           return;
         }
 
+        // Load playlist/watch context if present
+        try {
+          const ctxRaw = localStorage.getItem('watchContext');
+          if (ctxRaw) {
+            const ctx = JSON.parse(ctxRaw);
+            if (ctx && Array.isArray(ctx.list) && typeof ctx.currentIndex === 'number') {
+              setPlaylist({ list: ctx.list, currentIndex: Math.max(0, Math.min(ctx.currentIndex, ctx.list.length-1)), poster: ctx.poster || "" });
+            }
+          }
+        } catch {}
+
         const originalUrl = data.url.trim();
         if (!originalUrl) { router.replace('/user'); return; }
         setRawSrc(originalUrl);
@@ -201,6 +274,24 @@ export default function WatchPage() {
     };
     load();
   }, [router, normalizeUrl]);
+
+  // Persist simple preferences (theater, branding, bandwidth, advance)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('bf_watch_prefs_v1');
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (typeof p.lowBandwidth === 'boolean') setLowBandwidth(p.lowBandwidth);
+      if (typeof p.theaterMode === 'boolean') setTheaterMode(p.theaterMode);
+      if (typeof p.hideBranding === 'boolean') setHideBranding(p.hideBranding);
+      if (typeof p.autoAdvance === 'boolean') setAutoAdvance(p.autoAdvance);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('bf_watch_prefs_v1', JSON.stringify({ lowBandwidth, theaterMode, hideBranding, autoAdvance }));
+    } catch {}
+  }, [lowBandwidth, theaterMode, hideBranding, autoAdvance]);
 
   // Initialize playback for hls/mp4 types
   useEffect(() => {
@@ -282,6 +373,41 @@ export default function WatchPage() {
       setError('Cannot start playback: ' + err.message);
     });
   };
+
+  // Navigate within playlist
+  const canPrev = playlist.currentIndex > 0;
+  const canNext = playlist.currentIndex < playlist.list.length - 1;
+  const goTo = useCallback((idx) => {
+    if (!playlist.list.length) return;
+    const safe = Math.max(0, Math.min(idx, playlist.list.length - 1));
+    const item = playlist.list[safe];
+    if (!item) return;
+    const data = { url: item.url, timestamp: Date.now() };
+    localStorage.setItem('tempDownloadUrl', JSON.stringify(data));
+    const nextCtx = { ...playlist, currentIndex: safe };
+    localStorage.setItem('watchContext', JSON.stringify(nextCtx));
+    // Reload normalization for new URL
+    const { type, finalUrl } = normalizeUrl(item.url);
+    setVideoType(type);
+    setResolvedSrc(finalUrl);
+    setRawSrc(item.url);
+    setError('');
+    setManualPlayNeeded(false);
+    // Re-initialize flags
+    setInitialized(true);
+  }, [playlist, normalizeUrl]);
+  const prevVideo = () => { if (canPrev) goTo(playlist.currentIndex - 1); };
+  const nextVideo = () => { if (canNext) goTo(playlist.currentIndex + 1); };
+
+  // Keyboard: toggle fullscreen with 'f' (global listener)
+  useEffect(() => {
+    const onKey = (e) => {
+      const k = e.key?.toLowerCase();
+      if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleFullscreen]);
 
 
   const handleExit = () => { router.push('/user'); };
@@ -368,7 +494,54 @@ export default function WatchPage() {
           </div>
         )}
         {!loading && !error && resolvedSrc && (
-          <div className="w-full max-w-5xl aspect-video bg-black relative rounded-lg overflow-hidden shadow-xl border border-gray-800">
+          <div ref={playerContainerRef} onDoubleClick={toggleFullscreen} className={`w-full ${theaterMode ? 'max-w-[92vw]' : 'max-w-5xl'} aspect-video bg-black relative rounded-lg overflow-hidden shadow-xl border border-gray-800`}>
+            {/* Top overlay: prev/next & low-bandwidth toggle */}
+            <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
+              <button onClick={prevVideo} disabled={!canPrev} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canPrev?'opacity-50 cursor-not-allowed':''}`}>Prev</button>
+              <button onClick={nextVideo} disabled={!canNext} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canNext?'opacity-50 cursor-not-allowed':''}`}>Next</button>
+            </div>
+            <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
+              {/* <button
+                onClick={() => setShowSettings(v=>!v)}
+                className="w-9 h-9 flex items-center justify-center rounded-md bg-black/80 text-white hover:bg-white hover:text-black border border-white/60 shadow-md focus:outline-none focus:ring-2 focus:ring-white/60"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .11-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.14 7.14 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.93 2h-3.86a.5.5 0 0 0-.5.42l-.36 2.54c-.6.24-1.15.56-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L3.66 8.02a.5.5 0 0 0 .11.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L3.77 13.7a.5.5 0 0 0-.11.64l1.92 3.32c.14.24.43.34.61.22l2.39-.96c.48.38 1.03.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.86c.24 0 .45-.18.5-.42l.36-2.54c.6-.24 1.15-.56 1.63-.94l2.39.96c.25.1.52 0 .61-.22l1.92-3.32a.5.5 0 0 0-.11-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
+              </button> */}
+              <button
+                onClick={toggleFullscreen}
+                className="w-9 h-9 flex items-center justify-center rounded-md bg-black/80 text-white hover:bg-white hover:text-black border border-white/60 shadow-md focus:outline-none focus:ring-2 focus:ring-white/60"
+                title="Fullscreen (F)"
+                aria-label="Fullscreen"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm0-4h3V7h2v5H7V10zm10 9h-3v2h5v-5h-2v3zM14 5v3h2V5h3V3h-5v2z"/></svg>
+              </button>
+            </div>
+            {showSettings && (
+              <div className="absolute top-12 right-2 z-30 w-64 max-w-[90vw] bg-black/80 text-white text-xs rounded border border-white/10 shadow-lg p-3 space-y-3 backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Player Settings</span>
+                  <button onClick={()=>setShowSettings(false)} className="text-white/70 hover:text-white" aria-label="Close">✕</button>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2"><input type="checkbox" className="accent-blue-500" checked={theaterMode} onChange={e=>setTheaterMode(e.target.checked)} /> Theater mode</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" className="accent-blue-500" checked={hideBranding} onChange={e=>setHideBranding(e.target.checked)} /> Hide provider branding</label>
+                  {videoType === 'hls' && (
+                    <label className="flex items-center gap-2"><input type="checkbox" className="accent-blue-500" checked={lowBandwidth} onChange={e=>setLowBandwidth(e.target.checked)} /> Low bandwidth (HLS)</label>
+                  )}
+                  {(videoType === 'hls' || videoType === 'mp4') && (
+                    <label className="flex items-center gap-2"><input type="checkbox" className="accent-blue-500" checked={autoAdvance} onChange={e=>setAutoAdvance(e.target.checked)} /> Auto-advance next</label>
+                  )}
+                </div>
+                <div className="pt-1 grid grid-cols-2 gap-2">
+                  <button onClick={()=>{ try { navigator.clipboard.writeText(rawSrc); } catch {} }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Copy link</button>
+                  <a href={rawSrc} target="_blank" rel="noopener noreferrer" className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-center">Open original</a>
+                  <button onClick={()=>window.location.reload()} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Reload</button>
+                  <button onClick={()=>setShowSettings(false)} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Close</button>
+                </div>
+              </div>
+            )}
             {videoType === 'youtube' ? (
               <div className="w-full h-full relative flex items-center justify-center bg-black">
                 {!ytReady && ytThumb && (
@@ -458,6 +631,56 @@ export default function WatchPage() {
                   </div>
                 )}
               </div>
+            ) : videoType === 'odysee' ? (
+              <iframe
+                src={resolvedSrc}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="Odysee Video"
+              />
+            ) : videoType === 'rumble' ? (
+              <div className="absolute inset-0 w-full h-full">
+                <iframe
+                  src={resolvedSrc}
+                  className="absolute inset-0 w-full h-full"
+                  allow="autoplay; picture-in-picture"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-presentation"
+                  title="Rumble Video"
+                />
+                {/* Click-shields to block Rumble brand and internal fullscreen (bottom-right cluster) */}
+                {hideBranding && (<div
+                  aria-hidden
+                  className="absolute pointer-events-auto"
+                  style={{
+                    right: 0,
+                    bottom: 0,
+                    width: smallScreen ? 72 : 100,
+                    height: smallScreen ? 'min(12%, 44px)' : 'min(14%, 56px)',
+                    background: 'rgba(0,0,0,0.95)',
+                    zIndex: 30,
+                    cursor: 'default',
+                    userSelect: 'none',
+                  }}
+                  title=""
+                />)}
+                {/* Fallback pixel-sized shield in case percentage calc under-covers */}
+                {hideBranding && (<div
+                  aria-hidden
+                  className="absolute pointer-events-auto"
+                  style={{
+                    right: 2,
+                    bottom: 2,
+                    width: smallScreen ? 72 : 100,
+                    height: smallScreen ? 40 : 48,
+                    background: 'rgba(0,0,0,0.95)',
+                    zIndex: 31,
+                    cursor: 'default',
+                    userSelect: 'none',
+                  }}
+                  title=""
+                />)}
+              </div>
             ) : videoType === 'generic' ? (
               <div className="flex items-center justify-center w-full h-full text-sm text-gray-400 p-6 text-center">
                 This link type is not directly playable. Provide a direct MP4 or HLS (.m3u8) URL.
@@ -466,9 +689,11 @@ export default function WatchPage() {
               <VideoPlayer
                 src={resolvedSrc}
                 type={videoType === 'hls' ? 'hls' : 'mp4'}
-                poster="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=1200&q=60"
+                poster={playlist.poster || "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=1200&q=60"}
                 onError={handlePlayerError}
                 debug={process.env.NODE_ENV === 'development'}
+                lowBandwidth={lowBandwidth}
+                onEnded={autoAdvance ? nextVideo : undefined}
               />
             )}
             {/* Streamtape fallback embed (shown only if direct mp4 failed) */}
