@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 
 // ✅ METADATA (without viewport)
 export const metadata = {
-  title: "BrainFuel App",
-  description: "Stylish black & white Next.js App",
+  title: "YouTube",
+  description: "YouTube - Watch, Share and Upload Videos",
 };
 
 // ✅ SEPARATE VIEWPORT EXPORT (Next.js 15 requirement)
@@ -66,7 +66,7 @@ export default function RootLayout({ children }) {
 
         {/* Optional: Footer */}
         <footer className="w-full bg-black text-white text-center py-4 mt-auto">
-          <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
+          <p className="text-sm">&copy; 2025 YouTube. All rights reserved.</p>
         </footer>
       </body>
 

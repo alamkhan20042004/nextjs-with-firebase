@@ -240,8 +240,8 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-purple-500 rounded-full animate-spin"></div>
-          <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-purple-300 rounded-full animate-ping"></div>
+          <div className="w-16 h-16 border-4 border-red-500 rounded-full animate-spin"></div>
+          <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-red-300 rounded-full animate-ping"></div>
         </div>
       </div>
     );
@@ -297,7 +297,7 @@ export default function AdminPage() {
           
           <button
             onClick={fetchUsers}
-            className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-green-500/30 flex items-center justify-center"
+            className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8  0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
@@ -307,7 +307,7 @@ export default function AdminPage() {
 
           <button
             onClick={fetchCourses}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-700 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-fuchsia-500/30 flex items-center justify-center"
+            className="px-6 py-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-bold rounded-full transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/30 flex items-center justify-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path d="M4 3a2 2 0 00-2 2v9.5A2.5 2.5 0 004.5 17H15a3 3 0 003-3V5a2 2 0 00-2-2H4zm2 3h8a1 1 0 010 2H6a1 1 0 010-2zm0 4h5a1 1 0 010 2H6a1 1 0 010-2z" />
@@ -327,7 +327,7 @@ export default function AdminPage() {
         {/* Users Table */}
         {showUsers && (
           <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl mb-10">
-            <h2 className="text-2xl font-bold mb-6 text-green-400 text-center">Registered Users</h2>
+            <h2 className="text-2xl font-bold mb-6 text-red-400 text-center">Registered Users</h2>
             <p className="text-gray-400 text-center mb-6">Total Users: {users.length} | Online: {Array.from(onlineUsers).length}</p>
             
             <div className="overflow-x-auto">
@@ -408,7 +408,7 @@ export default function AdminPage() {
         {/* Courses Table */}
         {showCourses && (
           <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl mb-10">
-            <h2 className="text-2xl font-bold mb-6 text-fuchsia-400 text-center">Courses</h2>
+            <h2 className="text-2xl font-bold mb-6 text-red-400 text-center">Courses</h2>
             <p className="text-gray-400 text-center mb-6">Total Courses: {courses.length}</p>
             <div className="overflow-x-auto">
               <table className="min-w-full bg-gray-800 rounded-lg">
@@ -438,7 +438,7 @@ export default function AdminPage() {
                         <td className="py-3 px-4 flex items-center gap-2">
                           <button
                             onClick={() => router.push(`/admin/edit/${c.id}`)}
-                            className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded"
+                            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded"
                           >Edit</button>
                           <button
                             disabled={deletingId === c.id}

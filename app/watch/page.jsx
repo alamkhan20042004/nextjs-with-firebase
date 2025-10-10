@@ -34,6 +34,7 @@ export default function WatchPage() {
   const [theaterMode, setTheaterMode] = useState(false);
   const [hideBranding, setHideBranding] = useState(true);
   const [autoAdvance, setAutoAdvance] = useState(true);
+  const [showCompletionNotice, setShowCompletionNotice] = useState(false);
   // Streamtape support
   const [streamtapeId, setStreamtapeId] = useState("");
   const [streamtapeResolving, setStreamtapeResolving] = useState(false);
@@ -428,7 +429,47 @@ export default function WatchPage() {
     setInitialized(true);
   }, [playlist, normalizeUrl]);
   const prevVideo = () => { if (canPrev) goTo(playlist.currentIndex - 1); };
-  const nextVideo = () => { if (canNext) goTo(playlist.currentIndex + 1); };
+  const nextVideo = () => { 
+    if (canNext) {
+      // Mark current video as completed and update progress
+      updateProgressForCurrentVideo();
+      
+      // Show completion notice briefly
+      setShowCompletionNotice(true);
+      setTimeout(() => setShowCompletionNotice(false), 2000);
+      
+      goTo(playlist.currentIndex + 1); 
+    }
+  };
+
+  // Update progress tracking for auto-progression
+  const updateProgressForCurrentVideo = () => {
+    try {
+      const watchContext = JSON.parse(localStorage.getItem('watchContext') || '{}');
+      if (watchContext.course && watchContext.partIndex !== undefined) {
+        const currentVideo = playlist.list[playlist.currentIndex];
+        if (currentVideo && currentVideo.url) {
+          // Mark this video as completed
+          const linkKey = `${watchContext.course}_part${currentVideo.partIndex || watchContext.partIndex}_completed`;
+          const progressKey = 'bf_video_progress';
+          
+          try {
+            const existingProgress = JSON.parse(localStorage.getItem(progressKey) || '{}');
+            existingProgress[linkKey] = {
+              completed: true,
+              completedAt: new Date().toISOString(),
+              videoUrl: currentVideo.url
+            };
+            localStorage.setItem(progressKey, JSON.stringify(existingProgress));
+          } catch (e) {
+            console.error('Error updating video progress:', e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error in updateProgressForCurrentVideo:', e);
+    }
+  };
 
   // Keyboard: toggle fullscreen with 'f' (global listener)
   useEffect(() => {
@@ -526,11 +567,51 @@ export default function WatchPage() {
         )}
         {!loading && !error && resolvedSrc && (
           <div ref={playerContainerRef} onDoubleClick={toggleFullscreen} className={`w-full ${theaterMode ? 'max-w-[92vw]' : 'max-w-5xl'} aspect-video bg-black relative rounded-lg overflow-hidden shadow-xl border border-gray-800`}>
-            {/* Top overlay: prev/next & low-bandwidth toggle */}
-            {/* <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
-              <button onClick={prevVideo} disabled={!canPrev} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canPrev?'opacity-50 cursor-not-allowed':''}`}>Prev</button>
-              <button onClick={nextVideo} disabled={!canNext} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canNext?'opacity-50 cursor-not-allowed':''}`}>Next</button>
-            </div> */}
+            {/* Navigation overlay for auto-progression */}
+            {playlist.list.length > 1 && (
+              <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
+                <button 
+                  onClick={prevVideo} 
+                  disabled={!canPrev} 
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                    !canPrev ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed' 
+                    : 'bg-black/70 text-white hover:bg-red-600/80 hover:scale-105 shadow-md'
+                  }`}
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Prev
+                </button>
+                <div className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                  {playlist.currentIndex + 1} / {playlist.list.length}
+                </div>
+                <button 
+                  onClick={nextVideo} 
+                  disabled={!canNext} 
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
+                    !canNext ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed' 
+                    : 'bg-black/70 text-white hover:bg-red-600/80 hover:scale-105 shadow-md'
+                  }`}
+                >
+                  Next
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            
+            {/* Completion notification */}
+            {showCompletionNotice && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 bg-green-600/90 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Video Completed! Moving to next...</span>
+              </div>
+            )}
+            
             <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
               {/* <button
                 onClick={() => setShowSettings(v=>!v)}

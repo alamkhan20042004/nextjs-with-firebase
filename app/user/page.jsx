@@ -150,9 +150,9 @@ const SearchBar = ({ searchQuery, setSearchQuery, searchFocused, setSearchFocuse
         placeholder="Search courses or videos..."
         className={`w-full px-3 py-2.5 pr-9 rounded-xl bg-gray-900/80 backdrop-blur-sm border transition-all duration-300 ${
           searchFocused 
-            ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
+            ? 'border-red-500 shadow-lg shadow-red-500/20' 
             : 'border-gray-700 hover:border-gray-600'
-        } text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600`}
+        } text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-600`}
       />
       <div className="absolute right-3 top-1/2 -translate-y-1/2">
         {searchQuery ? (
@@ -183,7 +183,7 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
       className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === 0 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
-          : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-400 hover:to-purple-500 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-1 border border-blue-400/50 hover:border-blue-300/70'
+          : 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:from-red-500 hover:to-red-400 hover:shadow-xl hover:shadow-red-500/40 transform hover:-translate-y-1 border border-red-400/50 hover:border-red-300/70'
       }`}
     >
       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,7 +193,7 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
     </button>
     
     <div className="text-center">
-      <span className="text-base font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-sm">
+      <span className="text-base font-bold bg-gradient-to-r from-red-300 to-red-200 bg-clip-text text-transparent drop-shadow-sm">
         {currentPage + 1} of {totalPages}
       </span>
       <div className="text-xs text-gray-200 mt-1 drop-shadow-sm">Courses</div>
@@ -205,7 +205,7 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
       className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === totalPages - 1 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
-          : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-400 hover:to-purple-500 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-1 border border-blue-400/50 hover:border-blue-300/70'
+          : 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:from-red-500 hover:to-red-400 hover:shadow-xl hover:shadow-red-500/40 transform hover:-translate-y-1 border border-red-400/50 hover:border-red-300/70'
       }`}
     >
       Next
@@ -520,20 +520,100 @@ export default function UserPage() {
     return sections;
   };
 
-  // Link handling
-  const handleLinkClick = (courseName, partIndex, linkIndex, url, allFields, posterUrl) => {
+  // Link handling with auto-progression and part unlocking
+  const handleLinkClick = async (courseName, partIndex, linkIndex, url, allFields, posterUrl) => {
     const linkKey = `${courseName}_part${partIndex}_link${linkIndex}`;
     // Prevent multiple rapid clicks while animating
     if (clickedKey) return;
     setClickedKey(linkKey);
-    setLinkProgress(prev => ({ ...prev, [linkKey]: true }));
+    
+    // Auto-unlock all subsequent parts when clicking any part
+    const currentCourse = groupedContent[courseName] || [];
+    const updatedProgress = { ...linkProgress, [linkKey]: true };
+    
+    // Unlock all parts from current part onwards
+    for (let i = partIndex; i < currentCourse.length; i++) {
+      const part = currentCourse[i];
+      if (part && part.fields) {
+        // Unlock first video of each subsequent part
+        const firstVideoIndex = part.fields.findIndex(f => typeof f === 'string' && f.trim().startsWith('http'));
+        if (firstVideoIndex >= 0) {
+          const unlockKey = `${courseName}_part${i}_link${firstVideoIndex}`;
+          updatedProgress[unlockKey] = true;
+        }
+      }
+    }
+    
+    setLinkProgress(updatedProgress);
+    
+    // Save to both localStorage and Firestore
     if (user) {
-      const updated = { ...linkProgress, [linkKey]: true };
-      localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updated));
+      localStorage.setItem(`progress_${user.uid}`, JSON.stringify(updatedProgress));
+      
+      // Save to Firestore database
+      try {
+        if (userProgressDoc) {
+          await updateDoc(userProgressDoc, {
+            linkProgress: updatedProgress,
+            lastUpdated: new Date(),
+            lastClickedPart: partIndex,
+            lastClickedCourse: courseName
+          });
+        }
+      } catch (error) {
+        console.error('Error saving progress to Firestore:', error);
+      }
     }
     const data = { url, timestamp: Date.now() };
     localStorage.setItem('tempDownloadUrl', JSON.stringify(data));
+    
     try {
+      // Build playlist with auto-progression: current part + next parts from same course
+      const currentCourse = groupedContent[courseName] || [];
+      let fullPlaylist = [];
+      
+      // Add all videos from the current part
+      const currentPart = currentCourse[partIndex];
+      if (currentPart && currentPart.fields) {
+        const currentPartVideos = currentPart.fields
+          .filter(f => typeof f === 'string' && f.trim().startsWith('http'))
+          .map((u) => ({ 
+            url: u.trim(), 
+            title: `${courseName} - Part ${partIndex + 1}`,
+            partIndex: partIndex 
+          }));
+        fullPlaylist.push(...currentPartVideos);
+      }
+      
+      // Add videos from subsequent parts for auto-progression
+      for (let i = partIndex + 1; i < currentCourse.length; i++) {
+        const nextPart = currentCourse[i];
+        if (nextPart && nextPart.fields) {
+          const nextPartVideos = nextPart.fields
+            .filter(f => typeof f === 'string' && f.trim().startsWith('http'))
+            .map((u) => ({ 
+              url: u.trim(), 
+              title: `${courseName} - Part ${i + 1}`,
+              partIndex: i 
+            }));
+          fullPlaylist.push(...nextPartVideos);
+        }
+      }
+      
+      const currentIndex = Math.max(0, fullPlaylist.findIndex(i => i.url === url));
+      const ctx = {
+        course: courseName,
+        partIndex,
+        currentIndex,
+        list: fullPlaylist,
+        poster: posterUrl || "",
+        timestamp: Date.now(),
+        autoProgression: true // Flag to indicate this supports auto-progression
+      };
+      localStorage.setItem('watchContext', JSON.stringify(ctx));
+    } catch (e) {
+      console.error('Error building playlist:', e);
+      // Fallback to original behavior
       const list = (allFields || []).filter(f => typeof f === 'string' && f.trim().startsWith('http')).map((u) => ({ url: u.trim() }));
       const currentIndex = Math.max(0, list.findIndex(i => i.url === url));
       const ctx = {
@@ -545,11 +625,32 @@ export default function UserPage() {
         timestamp: Date.now()
       };
       localStorage.setItem('watchContext', JSON.stringify(ctx));
-    } catch {}
+    }
+    
     // Small delay to let the click animation play before navigating
     setTimeout(() => {
       router.push('/watch');
     }, 420);
+  };
+
+  // Check if a part is auto-unlocked (accessible due to previous part completion)
+  const isPartAutoUnlocked = (courseName, partIndex) => {
+    if (partIndex === 0) return true; // First part is always unlocked
+    
+    // Check if any previous part was clicked (which would unlock this part)
+    for (let i = 0; i < partIndex; i++) {
+      const prevPart = groupedContent[courseName]?.[i];
+      if (prevPart && prevPart.fields) {
+        const firstVideoInPrevPart = prevPart.fields.findIndex(f => typeof f === 'string' && f.trim().startsWith('http'));
+        if (firstVideoInPrevPart >= 0) {
+          const prevPartKey = `${courseName}_part${i}_link${firstVideoInPrevPart}`;
+          if (linkProgress[prevPartKey]) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   };
 
   if (isLoading) return <LoadingSpinner />;
@@ -564,15 +665,15 @@ export default function UserPage() {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 mb-7">
             <div className="flex items-center gap-3.5">
               <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <div className="w-12 h-12 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/30">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <div className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-20 blur-sm"></div>
+                <div className="absolute -inset-1.5 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl opacity-20 blur-sm"></div>
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-red-400 to-red-300 bg-clip-text text-transparent">
                   Welcome back
                 </h1>
                 <p className="text-gray-400 text-xs">{user?.email}</p>
@@ -708,7 +809,7 @@ export default function UserPage() {
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                               <div className="absolute bottom-3 left-3 right-3 transform translate-y-3 group-hover:translate-y-0 transition-transform duration-300 opacity-0 group-hover:opacity-100">
-                                <h4 className="text-white font-semibold text-base mb-0.5">Part {partIndex + 1}</h4>
+                                {/* <h4 className="text-white font-semibold text-base mb-0.5">Part {partIndex + 1}</h4> */}
                                 <p className="text-gray-200 text-xs">
                                   {part.fields?.filter(f => f.trim() && f.startsWith('http')).length || 0} videos • 
                                   {part.fields?.filter(f => f.trim() && !f.startsWith('http')).length || 0} resources
@@ -718,12 +819,17 @@ export default function UserPage() {
                           </div>
                           
                           <div className="mb-3 sm:mb-4">
-                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-purple-400 flex items-center gap-2">
+                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-red-400 flex items-center gap-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                               LEARNING CONTENT
+                              {isPartAutoUnlocked(courses[currentPage][0], partIndex) && partIndex > 0 && (
+                                <span className="px-2 py-1 text-xs bg-green-500/90 text-white rounded-full border border-green-400 font-semibold shadow-lg animate-pulse">
+                                  🔓 UNLOCKED
+                                </span>
+                              )}
                             </h3>
                             
                             {sections.map((sectionFields, sectionIndex) => {
@@ -815,9 +921,43 @@ export default function UserPage() {
                                           const globalIndex = part.fields.indexOf(field);
                                           const isUrl = field.startsWith('http');
                                           const linkKey = `${courses[currentPage][0]}_part${partIndex}_link${globalIndex}`;
+                                          const completionKey = `${courses[currentPage][0]}_part${partIndex}_completed`;
                                           const isUnlocked = linkProgress[linkKey];
-                                          const prevLinkKey = globalIndex > 0 ? `${courses[currentPage][0]}_part${partIndex}_link${globalIndex - 1}` : null;
-                                          const canAccess = globalIndex === 0 || linkProgress[prevLinkKey];
+                                          
+                                          // Check if this part is accessible (first video of part or part is unlocked via auto-progression)
+                                          let canAccess = false;
+                                          if (globalIndex === 0) {
+                                            // First video in the part - check if this part or any previous part was clicked
+                                            canAccess = partIndex === 0; // First part is always accessible
+                                            if (!canAccess) {
+                                              // Check if any previous part was clicked (which would unlock this part)
+                                              for (let i = 0; i < partIndex; i++) {
+                                                const prevPart = groupedContent[courses[currentPage][0]][i];
+                                                if (prevPart && prevPart.fields) {
+                                                  const firstVideoInPrevPart = prevPart.fields.findIndex(f => typeof f === 'string' && f.trim().startsWith('http'));
+                                                  if (firstVideoInPrevPart >= 0) {
+                                                    const prevPartKey = `${courses[currentPage][0]}_part${i}_link${firstVideoInPrevPart}`;
+                                                    if (linkProgress[prevPartKey]) {
+                                                      canAccess = true;
+                                                      break;
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          } else {
+                                            // Not first video in part - check if previous video in same part is unlocked
+                                            const prevLinkKey = `${courses[currentPage][0]}_part${partIndex}_link${globalIndex - 1}`;
+                                            canAccess = linkProgress[prevLinkKey];
+                                          }
+                                          
+                                          // Check if video was completed via auto-progression
+                                          let isCompleted = false;
+                                          try {
+                                            const videoProgress = JSON.parse(localStorage.getItem('bf_video_progress') || '{}');
+                                            const videoCompletionKey = `${courses[currentPage][0]}_part${partIndex}_completed`;
+                                            isCompleted = videoProgress[videoCompletionKey]?.completed || false;
+                                          } catch (e) {};
                                           
                                           if (isUrl) {
                                             return (
@@ -826,26 +966,34 @@ export default function UserPage() {
                                                   onClick={() => handleLinkClick(courses[currentPage][0], partIndex, globalIndex, field, part.fields, part.imageUrl)}
                                                   disabled={!canAccess}
                                                   className={`w-full text-left p-2 sm:p-2.5 rounded-md border transition-all duration-150 transform shadow-sm relative overflow-hidden ${
-                                                    isUnlocked 
-                                                      ? "border-green-400/70 bg-gradient-to-br from-green-500/15 via-green-400/10 to-green-600/15 hover:from-green-500/25 hover:to-green-600/25 hover:border-green-400/90 hover:-translate-y-0.5"
-                                                      : canAccess
-                                                        ? "border-blue-400/70 bg-gradient-to-br from-blue-500/15 via-blue-400/10 to-purple-600/15 hover:from-blue-500/25 hover:to-purple-600/25 hover:border-blue-400/90 hover:-translate-y-0.5"
-                                                        : "border-gray-600 bg-gray-800/40 text-gray-400 cursor-not-allowed"
-                                                  } ${clickedKey === linkKey ? 'ring-2 ring-blue-400/70 animate-pulse' : ''}`}
+                                                    isCompleted
+                                                      ? "border-green-400/90 bg-gradient-to-br from-green-500/25 via-green-400/20 to-green-600/25 hover:from-green-500/35 hover:to-green-600/35 hover:border-green-400/100 hover:-translate-y-0.5"
+                                                      : isUnlocked 
+                                                        ? "border-yellow-400/70 bg-gradient-to-br from-yellow-500/15 via-yellow-400/10 to-orange-600/15 hover:from-yellow-500/25 hover:to-orange-600/25 hover:border-yellow-400/90 hover:-translate-y-0.5"
+                                                        : canAccess
+                                                          ? "border-red-400/70 bg-gradient-to-br from-red-500/15 via-red-400/10 to-red-600/15 hover:from-red-500/25 hover:to-red-600/25 hover:border-red-400/90 hover:-translate-y-0.5"
+                                                          : "border-gray-600 bg-gray-800/40 text-gray-400 cursor-not-allowed"
+                                                  } ${clickedKey === linkKey ? 'ring-2 ring-red-400/70 animate-pulse' : ''}`}
                                                 >
                                                   <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2 sm:gap-2.5">
                                                       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md flex items-center justify-center shadow ${
-                                                        isUnlocked 
-                                                          ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/20' 
-                                                          : canAccess 
-                                                            ? 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/20' 
-                                                            : 'bg-gradient-to-br from-gray-600 to-gray-700 shadow-gray-600/20'
+                                                        isCompleted
+                                                          ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/20'
+                                                          : isUnlocked 
+                                                            ? 'bg-gradient-to-br from-yellow-400 to-orange-600 shadow-yellow-500/20' 
+                                                            : canAccess 
+                                                              ? 'bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/20' 
+                                                              : 'bg-gradient-to-br from-gray-600 to-gray-700 shadow-gray-600/20'
                                                       }`}>
                                                         {clickedKey === linkKey ? (
                                                           <svg className="w-3.5 h-3.5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
                                                             <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
                                                             <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"></path>
+                                                          </svg>
+                                                        ) : isCompleted ? (
+                                                          <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                           </svg>
                                                         ) : (
                                                           <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

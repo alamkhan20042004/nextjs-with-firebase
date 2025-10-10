@@ -4,7 +4,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import Link from "next/link";
 
-export default function Header({ user, title = "BrainFuel", showLogout = true }) {
+export default function Header({ user, title = "YouTube", showLogout = true }) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleLogout = async () => {
@@ -23,8 +23,8 @@ export default function Header({ user, title = "BrainFuel", showLogout = true })
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">BF</span>
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">▶</span>
               </div>
               <span className="text-xl font-bold text-gray-900">{title}</span>
             </Link>
@@ -46,7 +46,7 @@ export default function Header({ user, title = "BrainFuel", showLogout = true })
                       className="w-8 h-8 rounded-full"
                     />
                   ) : (
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                    <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-medium">
                         {(user.displayName || user.email || "U").charAt(0).toUpperCase()}
                       </span>

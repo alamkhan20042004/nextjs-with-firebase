@@ -467,7 +467,7 @@ export default function VideoPlayer({ src, type, poster, onError, debug, lowBand
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
           <button
             onClick={handleManualPlay}
-            className="px-8 py-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow-lg hover:scale-105 transition-transform"
+                        className="px-8 py-4 rounded-full bg-gradient-to-r from-red-600 to-red-500 text-white font-semibold shadow-lg hover:scale-105 transition-transform"
           >
             Tap to Play
           </button>

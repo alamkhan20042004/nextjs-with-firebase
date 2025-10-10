@@ -1,23 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  /* --background: #ffffff;
-  --foreground: #171717; */
+  /* YouTube Color Scheme */
+  --background: #0f0f0f;
   --foreground: #ffffff;
-  --background: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --youtube-red: #ff0000;
+  --youtube-dark-red: #cc0000;
+  --youtube-gray: #272727;
+  --youtube-light-gray: #3f3f3f;
+  --youtube-text-gray: #aaaaaa;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f0f0f;
+    --foreground: #ffffff;
   }
 }
 
