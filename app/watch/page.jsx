@@ -27,6 +27,7 @@ export default function WatchPage() {
   const [fbReady, setFbReady] = useState(false);
   const [fbEmbedUrl, setFbEmbedUrl] = useState("");
   const [fbThumb, setFbThumb] = useState(""); // Will attempt simple placeholder (FB doesn't give easy thumb without API)
+  const [fbLoading, setFbLoading] = useState(false);
   // Playlist context + poster
   const [playlist, setPlaylist] = useState({ list: [], currentIndex: 0, poster: "" });
   const [lowBandwidth, setLowBandwidth] = useState(false);
@@ -40,6 +41,9 @@ export default function WatchPage() {
   const [streamtapeResolving, setStreamtapeResolving] = useState(false);
   const [streamtapeFallback, setStreamtapeFallback] = useState(false); // fallback to iframe embed
   const [streamtapeRetryToken, setStreamtapeRetryToken] = useState(0);
+  const [stEmbedLoading, setStEmbedLoading] = useState(false);
+  const [odyseeLoading, setOdyseeLoading] = useState(false);
+  const [rumbleLoading, setRumbleLoading] = useState(false);
   const hlsInstanceRef = useRef(null);
   const timeoutRef = useRef(null);
   const playerContainerRef = useRef(null);
@@ -325,6 +329,21 @@ export default function WatchPage() {
     } catch {}
   }, [lowBandwidth, theaterMode, hideBranding, autoAdvance]);
 
+  // Reset provider-specific loading states when type changes
+  useEffect(() => {
+    setOdyseeLoading(videoType === 'odysee');
+    setRumbleLoading(videoType === 'rumble');
+    if (videoType !== 'facebook') setFbLoading(false);
+  }, [videoType]);
+  // When facebook embed is toggled ready, start loader until iframe fires load
+  useEffect(() => {
+    if (fbReady && videoType === 'facebook') setFbLoading(true);
+  }, [fbReady, videoType]);
+  // When switching to streamtape fallback embed, start loader until iframe load
+  useEffect(() => {
+    if (streamtapeFallback) setStEmbedLoading(true); else setStEmbedLoading(false);
+  }, [streamtapeFallback]);
+
   // Initialize playback for hls/mp4 types
   useEffect(() => {
     const setup = async () => {
@@ -552,7 +571,7 @@ export default function WatchPage() {
       <main className="flex-grow flex flex-col items-center justify-start p-4 w-full">
         {loading && (
           <div className="text-center mt-24">
-            <div className="w-16 h-16 border-4 border-blue-500 rounded-full animate-spin mb-4" />
+            <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-gray-400">Loading video metadata...</p>
           </div>
         )}
@@ -570,7 +589,7 @@ export default function WatchPage() {
             {/* Navigation overlay for auto-progression */}
             {playlist.list.length > 1 && (
               <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
-                <button 
+                {/* <button 
                   onClick={prevVideo} 
                   disabled={!canPrev} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
@@ -582,11 +601,11 @@ export default function WatchPage() {
                     <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                   Prev
-                </button>
-                <div className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                </button> */}
+                {/* <div className="bg-black/70 text-white px-2 py-1 rounded text-xs">
                   {playlist.currentIndex + 1} / {playlist.list.length}
-                </div>
-                <button 
+                </div> */}
+                {/* <button 
                   onClick={nextVideo} 
                   disabled={!canNext} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
@@ -598,7 +617,7 @@ export default function WatchPage() {
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
-                </button>
+                </button> */}
               </div>
             )}
             
@@ -675,7 +694,7 @@ export default function WatchPage() {
               <div className="w-full h-full relative flex items-center justify-center bg-black">
                 {!fbReady && (
                   <button
-                    onClick={() => setFbReady(true)}
+                    onClick={() => { setFbReady(true); setFbLoading(true); }}
                     className="group relative w-full h-full"
                   >
                     {fbThumb && (
@@ -698,6 +717,12 @@ export default function WatchPage() {
                 )}
                 {fbReady && fbEmbedUrl && (
                   <>
+                    {fbLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+                        <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                        <p className="mt-3 text-xs text-gray-300">Loading video…</p>
+                      </div>
+                    )}
                     <iframe
                       src={fbEmbedUrl}
                       className="absolute inset-0 w-full h-full"
@@ -707,6 +732,7 @@ export default function WatchPage() {
                       allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                       allowFullScreen={true}
                       title="Facebook Video"
+                      onLoad={() => setFbLoading(false)}
                     />
                     <div className="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] text-white/70 border border-white/10 max-w-[210px]">
                       Arrow key skipping is only available for MP4 / HLS sources right now.
@@ -744,21 +770,37 @@ export default function WatchPage() {
                 )}
               </div>
             ) : videoType === 'odysee' ? (
-              <iframe
-                src={resolvedSrc}
-                className="absolute inset-0 w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="Odysee Video"
-              />
+              <div className="absolute inset-0 w-full h-full">
+                {odyseeLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <p className="mt-3 text-xs text-gray-300">Loading video…</p>
+                  </div>
+                )}
+                <iframe
+                  src={resolvedSrc}
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Odysee Video"
+                  onLoad={() => setOdyseeLoading(false)}
+                />
+              </div>
             ) : videoType === 'rumble' ? (
               <div className="absolute inset-0 w-full h-full">
+                {rumbleLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <p className="mt-3 text-xs text-gray-300">Loading video…</p>
+                  </div>
+                )}
                 <iframe
                   src={resolvedSrc}
                   className="absolute inset-0 w-full h-full"
                   allow="autoplay; picture-in-picture"
                   sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-presentation"
                   title="Rumble Video"
+                  onLoad={() => setRumbleLoading(false)}
                 />
                 {/* Click-shields to block Rumble brand and internal fullscreen (bottom-right cluster) */}
                 {hideBranding && (<div
@@ -812,12 +854,19 @@ export default function WatchPage() {
             {/* Streamtape fallback embed (shown only if direct mp4 failed) */}
             {streamtapeFallback && streamtapeId && (
               <div className="absolute inset-0 w-full h-full bg-black">
+                {stEmbedLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <p className="mt-3 text-xs text-gray-300">Loading video…</p>
+                  </div>
+                )}
                 <iframe
                   src={`https://streamtape.com/e/${streamtapeId}/`}
                   className="w-full h-full"
                   allowFullScreen
                   title="Streamtape Fallback"
                   allow="autoplay; picture-in-picture"
+                  onLoad={() => setStEmbedLoading(false)}
                 />
                 {/* <div className="absolute top-2 left-2 bg-black/60 text-white/70 text-[10px] px-2 py-1 rounded border border-white/10">
                   Fallback embed (skip keys may not work)

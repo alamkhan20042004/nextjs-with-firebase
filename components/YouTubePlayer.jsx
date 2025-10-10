@@ -12,6 +12,7 @@ export default function YouTubePlayer({ videoId, autoPlay = true, onError, skipS
   const playerRef = useRef(null); // YT.Player instance
   const [ready, setReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [showUi, setShowUi] = useState(true);
@@ -63,11 +64,19 @@ export default function YouTubePlayer({ videoId, autoPlay = true, onError, skipS
             setDuration(e.target.getDuration());
             setAvailableRates(e.target.getAvailablePlaybackRates());
             if (autoPlay) e.target.playVideo();
+            // We keep spinner until we get PLAYING or CANPLAY equivalent
             resetHide();
           },
           onStateChange: (e) => {
             const YTState = window.YT.PlayerState;
             setIsPlaying(e.data === YTState.PLAYING);
+            // Manage buffering/loader visibility based on YT states
+            if (e.data === YTState.BUFFERING || e.data === YTState.UNSTARTED) {
+              setIsBuffering(true);
+            } else {
+              // PLAYING, PAUSED, ENDED, CUED
+              setIsBuffering(false);
+            }
           },
           onError: (e) => {
             onError?.('YouTube error code ' + e.data);
@@ -142,6 +151,13 @@ export default function YouTubePlayer({ videoId, autoPlay = true, onError, skipS
   return (
     <div className="w-full h-full relative group bg-black" onMouseMove={resetHide} onClick={resetHide}>
       <div className="absolute inset-0" ref={containerRef} />
+      {/* Loading / buffering overlay for slow connections */}
+      {isBuffering && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+          <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+          <p className="mt-3 text-xs text-gray-300">Loading video…</p>
+        </div>
+      )}
       {/* Overlay controls */}
       <div className={`absolute inset-0 flex items-center justify-center gap-24 pointer-events-none transition-opacity ${showUi? 'opacity-100' : 'opacity-0'}`}>
         <button

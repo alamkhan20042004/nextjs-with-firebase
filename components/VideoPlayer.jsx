@@ -40,6 +40,8 @@ export default function VideoPlayer({ src, type, poster, onError, debug, lowBand
   const [rememberPosition, setRememberPosition] = useState(true);
   const restoredRef = useRef(false);
   const pendingSeekRef = useRef(0); // accumulate skip requests before metadata ready
+  // Loading / buffering overlay state
+  const [isBuffering, setIsBuffering] = useState(true);
 
   const pushLog = (m) => setLog(d => [...d, `[${new Date().toISOString()}] ${m}`]);
 
@@ -213,12 +215,27 @@ export default function VideoPlayer({ src, type, poster, onError, debug, lowBand
       } catch {}
     };
     const onVolume = () => { setVolume(el.volume); setMuted(el.muted); };
+    // Buffering state handlers
+    const onLoadStart = () => { setIsBuffering(true); };
+    const onWaiting = () => { setIsBuffering(true); };
+    const onStalled = () => { setIsBuffering(true); };
+    const onSeeking = () => { setIsBuffering(true); };
+    const onCanPlay = () => { setIsBuffering(false); };
+    const onPlaying = () => { setIsBuffering(false); };
+    const onSeeked = () => { setIsBuffering(false); };
     el.addEventListener('play', onPlay);
     el.addEventListener('pause', onPause);
   el.addEventListener('loadedmetadata', onLoadedPatched);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('progress', onProgress);
   el.addEventListener('volumechange', onVolume);
+    el.addEventListener('loadstart', onLoadStart);
+    el.addEventListener('waiting', onWaiting);
+    el.addEventListener('stalled', onStalled);
+    el.addEventListener('seeking', onSeeking);
+    el.addEventListener('canplay', onCanPlay);
+    el.addEventListener('playing', onPlaying);
+    el.addEventListener('seeked', onSeeked);
   el.addEventListener('ended', () => { try { onEnded?.(); } catch {} });
     return () => {
       el.removeEventListener('play', onPlay);
@@ -227,6 +244,13 @@ export default function VideoPlayer({ src, type, poster, onError, debug, lowBand
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('progress', onProgress);
       el.removeEventListener('volumechange', onVolume);
+      el.removeEventListener('loadstart', onLoadStart);
+      el.removeEventListener('waiting', onWaiting);
+      el.removeEventListener('stalled', onStalled);
+      el.removeEventListener('seeking', onSeeking);
+      el.removeEventListener('canplay', onCanPlay);
+      el.removeEventListener('playing', onPlaying);
+      el.removeEventListener('seeked', onSeeked);
       el.removeEventListener('ended', () => {});
     };
   }, [type]);
@@ -472,6 +496,13 @@ export default function VideoPlayer({ src, type, poster, onError, debug, lowBand
             Tap to Play
           </button>
           <p className="mt-4 text-xs text-gray-300 max-w-xs text-center">Autoplay was blocked by the browser. Tap to begin playback.</p>
+        </div>
+      )}
+      {/* Loading / buffering overlay: show until video starts playing, and during network buffering. */}
+      {isBuffering && !manualPlayNeeded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
+          <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+          <p className="mt-3 text-xs text-gray-300">Loading video…</p>
         </div>
       )}
       {!isPlaying && !manualPlayNeeded && (
