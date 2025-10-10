@@ -655,8 +655,8 @@ export default function WatchPage() {
                   style={{
                     right: 0,
                     bottom: 0,
-                    width: smallScreen ? 72 : 100,
-                    height: smallScreen ? 'min(12%, 44px)' : 'min(14%, 56px)',
+                    width: smallScreen ? 100 : 100,
+                    height: smallScreen ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 30,
                     cursor: 'default',
@@ -671,8 +671,8 @@ export default function WatchPage() {
                   style={{
                     right: 2,
                     bottom: 2,
-                    width: smallScreen ? 72 : 100,
-                    height: smallScreen ? 40 : 48,
+                    width: smallScreen ? 100 : 100,
+                    height: smallScreen ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 31,
                     cursor: 'default',
