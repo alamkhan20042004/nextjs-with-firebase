@@ -59,6 +59,37 @@ export default function WatchPage() {
     return () => { try { mq.removeEventListener('change', apply); } catch { mq.removeListener(apply); } };
   }, []);
 
+  // Orientation/viewport helpers to fine-tune mobile landscape sizing
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [shortViewport, setShortViewport] = useState(false); // e.g., mobile landscape often has low height
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mqOrientation = window.matchMedia('(orientation: landscape)');
+    const mqShort = window.matchMedia('(max-height: 480px)');
+    const apply = () => {
+      setIsLandscape(!!mqOrientation.matches);
+      setShortViewport(!!mqShort.matches);
+    };
+    try {
+      mqOrientation.addEventListener('change', apply);
+      mqShort.addEventListener('change', apply);
+    } catch {
+      // Safari/iOS fallback
+      mqOrientation.addListener(apply);
+      mqShort.addListener(apply);
+    }
+    apply();
+    return () => {
+      try {
+        mqOrientation.removeEventListener('change', apply);
+        mqShort.removeEventListener('change', apply);
+      } catch {
+        mqOrientation.removeListener(apply);
+        mqShort.removeListener(apply);
+      }
+    };
+  }, []);
+
   const pushDebug = (msg) => setDebug(d => [...d, `[${new Date().toISOString()}] ${msg}`]);
 
   // Auth guard
@@ -496,10 +527,10 @@ export default function WatchPage() {
         {!loading && !error && resolvedSrc && (
           <div ref={playerContainerRef} onDoubleClick={toggleFullscreen} className={`w-full ${theaterMode ? 'max-w-[92vw]' : 'max-w-5xl'} aspect-video bg-black relative rounded-lg overflow-hidden shadow-xl border border-gray-800`}>
             {/* Top overlay: prev/next & low-bandwidth toggle */}
-            <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
+            {/* <div className="absolute top-2 left-2 z-20 flex items-center gap-2">
               <button onClick={prevVideo} disabled={!canPrev} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canPrev?'opacity-50 cursor-not-allowed':''}`}>Prev</button>
               <button onClick={nextVideo} disabled={!canNext} className={`px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs ${!canNext?'opacity-50 cursor-not-allowed':''}`}>Next</button>
-            </div>
+            </div> */}
             <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
               {/* <button
                 onClick={() => setShowSettings(v=>!v)}
@@ -655,8 +686,9 @@ export default function WatchPage() {
                   style={{
                     right: 0,
                     bottom: 0,
-                    width: smallScreen ? 100 : 100,
-                    height: smallScreen ? 30 : 40,
+                    // Mobile portrait: 100px; Mobile landscape: +30px width; Desktop unchanged
+                    width: (smallScreen || shortViewport) ? (isLandscape ? 130 : 100) : 100,
+                    height: (smallScreen || shortViewport) ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 30,
                     cursor: 'default',
@@ -671,8 +703,8 @@ export default function WatchPage() {
                   style={{
                     right: 2,
                     bottom: 2,
-                    width: smallScreen ? 100 : 100,
-                    height: smallScreen ? 30 : 40,
+                    width: (smallScreen || shortViewport) ? (isLandscape ? 130 : 100) : 100,
+                    height: (smallScreen || shortViewport) ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 31,
                     cursor: 'default',
