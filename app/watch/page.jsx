@@ -687,7 +687,7 @@ export default function WatchPage() {
                     right: 0,
                     bottom: 0,
                     // Mobile portrait: 100px; Mobile landscape: +30px width; Desktop unchanged
-                    width: (smallScreen || shortViewport) ? (isLandscape ? 130 : 100) : 100,
+                    width: (smallScreen || shortViewport) ? (isLandscape ? 145 : 115) : 100,
                     height: (smallScreen || shortViewport) ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 30,
@@ -703,7 +703,7 @@ export default function WatchPage() {
                   style={{
                     right: 2,
                     bottom: 2,
-                    width: (smallScreen || shortViewport) ? (isLandscape ? 130 : 100) : 100,
+                    width: (smallScreen || shortViewport) ? (isLandscape ? 145 : 115) : 100,
                     height: (smallScreen || shortViewport) ? 30 : 40,
                     background: 'rgba(0,0,0,0.95)',
                     zIndex: 31,
