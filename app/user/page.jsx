@@ -924,31 +924,27 @@ export default function UserPage() {
                                           const completionKey = `${courses[currentPage][0]}_part${partIndex}_completed`;
                                           const isUnlocked = linkProgress[linkKey];
                                           
-                                          // Check if this part is accessible (first video of part or part is unlocked via auto-progression)
+                                          // Determine access based on URL ordering within the part
                                           let canAccess = false;
-                                          if (globalIndex === 0) {
-                                            // First video in the part - check if this part or any previous part was clicked
-                                            canAccess = partIndex === 0; // First part is always accessible
-                                            if (!canAccess) {
-                                              // Check if any previous part was clicked (which would unlock this part)
-                                              for (let i = 0; i < partIndex; i++) {
-                                                const prevPart = groupedContent[courses[currentPage][0]][i];
-                                                if (prevPart && prevPart.fields) {
-                                                  const firstVideoInPrevPart = prevPart.fields.findIndex(f => typeof f === 'string' && f.trim().startsWith('http'));
-                                                  if (firstVideoInPrevPart >= 0) {
-                                                    const prevPartKey = `${courses[currentPage][0]}_part${i}_link${firstVideoInPrevPart}`;
-                                                    if (linkProgress[prevPartKey]) {
-                                                      canAccess = true;
-                                                      break;
-                                                    }
-                                                  }
-                                                }
+                                          const firstVideoIndexInPart = part.fields.findIndex(f => typeof f === 'string' && f.trim().startsWith('http'));
+                                          if (globalIndex === firstVideoIndexInPart) {
+                                            // First playable item in this part
+                                            canAccess = partIndex === 0 || isPartAutoUnlocked(courses[currentPage][0], partIndex);
+                                          } else {
+                                            // Find previous playable URL in this part and require it to be unlocked
+                                            let prevUrlIndex = -1;
+                                            for (let j = globalIndex - 1; j >= 0; j--) {
+                                              if (typeof part.fields[j] === 'string' && part.fields[j].trim().startsWith('http')) {
+                                                prevUrlIndex = j;
+                                                break;
                                               }
                                             }
-                                          } else {
-                                            // Not first video in part - check if previous video in same part is unlocked
-                                            const prevLinkKey = `${courses[currentPage][0]}_part${partIndex}_link${globalIndex - 1}`;
-                                            canAccess = linkProgress[prevLinkKey];
+                                            if (prevUrlIndex >= 0) {
+                                              const prevLinkKey = `${courses[currentPage][0]}_part${partIndex}_link${prevUrlIndex}`;
+                                              canAccess = !!linkProgress[prevLinkKey];
+                                            } else {
+                                              canAccess = false;
+                                            }
                                           }
                                           
                                           // Check if video was completed via auto-progression
