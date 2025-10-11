@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  /* YouTube Color Scheme */
-  --background: #0f0f0f;
+  /* BrainFuel Color Scheme */
+  --background: #0b1020; /* BrainFuel deep navy */
   --foreground: #ffffff;
-  --youtube-red: #ff0000;
-  --youtube-dark-red: #cc0000;
-  --youtube-gray: #272727;
-  --youtube-light-gray: #3f3f3f;
-  --youtube-text-gray: #aaaaaa;
+  --bf-primary: #6366f1; /* indigo-500 */
+  --bf-primary-dark: #4f46e5; /* indigo-600 */
+  --bf-accent: #22d3ee; /* cyan-400 accent */
+  --bf-gray-1: #e2e8f0; /* slate-200 */
+  --bf-gray-2: #94a3b8; /* slate-400 */
+  --bf-gray-3: #475569; /* slate-600 */
 }
 
 @media (prefers-color-scheme: dark) {

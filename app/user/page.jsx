@@ -150,9 +150,9 @@ const SearchBar = ({ searchQuery, setSearchQuery, searchFocused, setSearchFocuse
         placeholder="Search courses or videos..."
         className={`w-full px-3 py-2.5 pr-9 rounded-xl bg-gray-900/80 backdrop-blur-sm border transition-all duration-300 ${
           searchFocused 
-            ? 'border-red-500 shadow-lg shadow-red-500/20' 
+            ? 'border-indigo-500 shadow-lg shadow-indigo-500/20' 
             : 'border-gray-700 hover:border-gray-600'
-        } text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-600`}
+  } text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600`}
       />
       <div className="absolute right-3 top-1/2 -translate-y-1/2">
         {searchQuery ? (
@@ -183,7 +183,7 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
       className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === 0 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
-          : 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:from-red-500 hover:to-red-400 hover:shadow-xl hover:shadow-red-500/40 transform hover:-translate-y-1 border border-red-400/50 hover:border-red-300/70'
+          : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white hover:from-indigo-500 hover:to-indigo-400 hover:shadow-xl hover:shadow-indigo-500/40 transform hover:-translate-y-1 border border-indigo-400/50 hover:border-indigo-300/70'
       }`}
     >
       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,7 +205,7 @@ const PaginationControls = ({ currentPage, totalPages, onPrev, onNext }) => (
       className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center w-full sm:w-auto min-w-[120px] shadow-md backdrop-blur-sm ${
         currentPage === totalPages - 1 
           ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border border-gray-600' 
-          : 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:from-red-500 hover:to-red-400 hover:shadow-xl hover:shadow-red-500/40 transform hover:-translate-y-1 border border-red-400/50 hover:border-red-300/70'
+          : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white hover:from-indigo-500 hover:to-indigo-400 hover:shadow-xl hover:shadow-indigo-500/40 transform hover:-translate-y-1 border border-indigo-400/50 hover:border-indigo-300/70'
       }`}
     >
       Next
@@ -731,8 +731,8 @@ export default function UserPage() {
           </div>
 
           {error && (
-            <div className="bg-red-900/50 border border-red-700 p-4 rounded-xl mb-6">
-              <p className="text-red-300 flex items-center gap-2">
+            <div className="bg-indigo-900/50 border border-indigo-700 p-4 rounded-xl mb-6">
+              <p className="text-indigo-300 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
@@ -819,7 +819,7 @@ export default function UserPage() {
                           </div>
                           
                           <div className="mb-3 sm:mb-4">
-                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-red-400 flex items-center gap-2">
+                            <h3 className="text-base sm:text-lg font-semibold mb-3 text-indigo-400 flex items-center gap-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -971,9 +971,9 @@ export default function UserPage() {
                                                       : isUnlocked 
                                                         ? "border-yellow-400/70 bg-gradient-to-br from-yellow-500/15 via-yellow-400/10 to-orange-600/15 hover:from-yellow-500/25 hover:to-orange-600/25 hover:border-yellow-400/90 hover:-translate-y-0.5"
                                                         : canAccess
-                                                          ? "border-red-400/70 bg-gradient-to-br from-red-500/15 via-red-400/10 to-red-600/15 hover:from-red-500/25 hover:to-red-600/25 hover:border-red-400/90 hover:-translate-y-0.5"
+                                                          ? "border-indigo-400/70 bg-gradient-to-br from-indigo-500/15 via-indigo-400/10 to-indigo-600/15 hover:from-indigo-500/25 hover:to-indigo-600/25 hover:border-indigo-400/90 hover:-translate-y-0.5"
                                                           : "border-gray-600 bg-gray-800/40 text-gray-400 cursor-not-allowed"
-                                                  } ${clickedKey === linkKey ? 'ring-2 ring-red-400/70 animate-pulse' : ''}`}
+                                                  } ${clickedKey === linkKey ? 'ring-2 ring-indigo-400/70 animate-pulse' : ''}`}
                                                 >
                                                   <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2 sm:gap-2.5">

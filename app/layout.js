@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 
 // ✅ METADATA (without viewport)
 export const metadata = {
-  title: "YouTube",
-  description: "YouTube - Watch, Share and Upload Videos",
+  title: "BrainFuel",
+  description: "BrainFuel - Learn, Watch, and Grow",
 };
 
 // ✅ SEPARATE VIEWPORT EXPORT (Next.js 15 requirement)
@@ -32,7 +32,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-          <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>      
+          {/* <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>   */}
+          
+          <script type="text/javascript" src="https://hotbrigofo.today/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>    
   {/* ================= META TAGS ================= */}
 
   
@@ -66,7 +68,7 @@ export default function RootLayout({ children }) {
 
         {/* Optional: Footer */}
         <footer className="w-full bg-black text-white text-center py-4 mt-auto">
-          <p className="text-sm">&copy; 2025 YouTube. All rights reserved.</p>
+          <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
         </footer>
       </body>
 

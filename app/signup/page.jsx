@@ -100,7 +100,7 @@ export default function SignupPage() {
         <div className="backdrop-blur-md bg-white/90 border border-white/15 rounded-2xl p-8 shadow-xl animate-fadeIn">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              Join YouTube
+              Join BrainFuel
             </h1>
             <p className="text-gray-600">
               Create your account to get started
@@ -108,7 +108,7 @@ export default function SignupPage() {
           </div>
 
           {errorMsg && (
-            <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mb-4 rounded-md border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
               {errorMsg}
               <button
                 onClick={() => setErrorMsg("")}

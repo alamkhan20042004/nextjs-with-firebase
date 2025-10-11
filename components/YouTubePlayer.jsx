@@ -154,7 +154,7 @@ export default function YouTubePlayer({ videoId, autoPlay = true, onError, skipS
       {/* Loading / buffering overlay for slow connections */}
       {isBuffering && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-          <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+          <div className="w-14 h-14 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" aria-label="Loading" />
           <p className="mt-3 text-xs text-gray-300">Loading video…</p>
         </div>
       )}

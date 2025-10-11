@@ -300,14 +300,14 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md px-5">
         <div className="backdrop-blur-md bg-white/90 border border-white/15 rounded-2xl p-8 shadow-xl animate-fadeIn">
           <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">
-            YouTube
+            BrainFuel
           </h1>
             <p className="text-center text-gray-600 mb-6">
               Sign in to access your dashboard
             </p>
 
           {errorMsg && (
-            <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mb-4 rounded-md border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
               {errorMsg}{" "}
               <button
                 onClick={() => setErrorMsg("")}
@@ -318,7 +318,7 @@ export default function LoginPage() {
             </div>
           )}
           {infoMsg && !errorMsg && (
-            <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="mb-4 rounded-md border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
               {infoMsg}{" "}
               <button
                 onClick={() => setInfoMsg("")}
@@ -379,7 +379,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full flex items-center justify-center gap-2 rounded-md bg-red-600 py-2.5 text-sm font-medium text-white shadow transition ${isLoading ? "opacity-70" : "hover:bg-red-700"}`}
+              className={`w-full flex items-center justify-center gap-2 rounded-md bg-indigo-600 py-2.5 text-sm font-medium text-white shadow transition ${isLoading ? "opacity-70" : "hover:bg-indigo-700"}`}
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>

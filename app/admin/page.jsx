@@ -240,7 +240,7 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-red-500 rounded-full animate-spin"></div>
+          <div className="w-16 h-16 border-4 border-indigo-500 rounded-full animate-spin"></div>
           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-red-300 rounded-full animate-ping"></div>
         </div>
       </div>
@@ -327,7 +327,7 @@ export default function AdminPage() {
         {/* Users Table */}
         {showUsers && (
           <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl mb-10">
-            <h2 className="text-2xl font-bold mb-6 text-red-400 text-center">Registered Users</h2>
+            <h2 className="text-2xl font-bold mb-6 text-indigo-400 text-center">Registered Users</h2>
             <p className="text-gray-400 text-center mb-6">Total Users: {users.length} | Online: {Array.from(onlineUsers).length}</p>
             
             <div className="overflow-x-auto">
@@ -362,7 +362,7 @@ export default function AdminPage() {
                         <td className="py-3 px-4 max-w-[160px] truncate" title={userData.name || 'N/A'}>{userData.name || 'N/A'}</td>
                         <td className="py-3 px-4">{joined ? joined.toLocaleDateString() : 'N/A'}</td>
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${online ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${online ? 'bg-green-100 text-green-800 border-green-300' : 'bg-indigo-100 text-indigo-800 border-indigo-300'}`}>
                             {online ? 'Online' : 'Offline'}
                           </span>
                         </td>
@@ -408,7 +408,7 @@ export default function AdminPage() {
         {/* Courses Table */}
         {showCourses && (
           <div className="bg-gray-900 bg-opacity-70 backdrop-blur-lg rounded-2xl p-8 border border-gray-800 shadow-2xl mb-10">
-            <h2 className="text-2xl font-bold mb-6 text-red-400 text-center">Courses</h2>
+            <h2 className="text-2xl font-bold mb-6 text-indigo-400 text-center">Courses</h2>
             <p className="text-gray-400 text-center mb-6">Total Courses: {courses.length}</p>
             <div className="overflow-x-auto">
               <table className="min-w-full bg-gray-800 rounded-lg">
@@ -438,12 +438,12 @@ export default function AdminPage() {
                         <td className="py-3 px-4 flex items-center gap-2">
                           <button
                             onClick={() => router.push(`/admin/edit/${c.id}`)}
-                            className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded"
+                            className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded"
                           >Edit</button>
                           <button
                             disabled={deletingId === c.id}
                             onClick={() => deleteCourse(c.id)}
-                            className={`px-3 py-1 text-xs rounded text-white ${deletingId === c.id ? 'bg-red-800 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                            className={`px-3 py-1 text-xs rounded text-white ${deletingId === c.id ? 'bg-indigo-800 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                           >{deletingId === c.id ? 'Deleting...' : 'Delete'}</button>
                         </td>
                       </tr>
@@ -543,7 +543,7 @@ export default function AdminPage() {
                       <button
                         type="button"
                         onClick={() => removeSection(index)}
-                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                        className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                       >
                         Remove
                       </button>

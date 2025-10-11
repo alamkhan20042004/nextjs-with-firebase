@@ -571,15 +571,15 @@ export default function WatchPage() {
       <main className="flex-grow flex flex-col items-center justify-start p-4 w-full">
         {loading && (
           <div className="text-center mt-24">
-            <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4" />
+            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-gray-400">Loading video metadata...</p>
           </div>
         )}
         {!loading && error && (
           <div className="text-center max-w-md mt-16">
-            <p className="text-red-400 mb-4 font-medium">{error}</p>
+            <p className="text-indigo-300 mb-4 font-medium">{error}</p>
             <div className="space-x-3">
-              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded">Reload</button>
+              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded">Reload</button>
               <button onClick={handleExit} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">Back</button>
             </div>
           </div>
@@ -594,7 +594,7 @@ export default function WatchPage() {
                   disabled={!canPrev} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
                     !canPrev ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed' 
-                    : 'bg-black/70 text-white hover:bg-red-600/80 hover:scale-105 shadow-md'
+                    : 'bg-black/70 text-white hover:bg-indigo-600/80 hover:scale-105 shadow-md'
                   }`}
                 >
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -610,7 +610,7 @@ export default function WatchPage() {
                   disabled={!canNext} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1 ${
                     !canNext ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed' 
-                    : 'bg-black/70 text-white hover:bg-red-600/80 hover:scale-105 shadow-md'
+                    : 'bg-black/70 text-white hover:bg-indigo-600/80 hover:scale-105 shadow-md'
                   }`}
                 >
                   Next
@@ -719,7 +719,7 @@ export default function WatchPage() {
                   <>
                     {fbLoading && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-                        <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                        <div className="w-14 h-14 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" aria-label="Loading" />
                         <p className="mt-3 text-xs text-gray-300">Loading video…</p>
                       </div>
                     )}
@@ -773,7 +773,7 @@ export default function WatchPage() {
               <div className="absolute inset-0 w-full h-full">
                 {odyseeLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <div className="w-14 h-14 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" aria-label="Loading" />
                     <p className="mt-3 text-xs text-gray-300">Loading video…</p>
                   </div>
                 )}
@@ -790,7 +790,7 @@ export default function WatchPage() {
               <div className="absolute inset-0 w-full h-full">
                 {rumbleLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <div className="w-14 h-14 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" aria-label="Loading" />
                     <p className="mt-3 text-xs text-gray-300">Loading video…</p>
                   </div>
                 )}
@@ -856,7 +856,7 @@ export default function WatchPage() {
               <div className="absolute inset-0 w-full h-full bg-black">
                 {stEmbedLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-                    <div className="w-14 h-14 rounded-full border-4 border-red-600 border-t-transparent animate-spin" aria-label="Loading" />
+                    <div className="w-14 h-14 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" aria-label="Loading" />
                     <p className="mt-3 text-xs text-gray-300">Loading video…</p>
                   </div>
                 )}
@@ -890,7 +890,7 @@ export default function WatchPage() {
         )} */}
       </main>
 
-      <footer className="p-4 text-center text-[10px] text-gray-500 border-t border-gray-800">Secure Streaming • HLS / MP4 / YouTube prototype</footer>
+  <footer className="p-4 text-center text-[10px] text-gray-500 border-t border-gray-800">Secure Streaming • HLS / MP4 / BrainFuel prototype</footer>
     </div>
   );
 }

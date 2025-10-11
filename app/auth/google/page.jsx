@@ -71,7 +71,7 @@ export default function GoogleRedirectAuthPage() {
         return {
           title: "Authentication Failed",
           message: error,
-          color: "text-red-400",
+          color: "text-indigo-400",
           icon: "❌"
         };
       default:
