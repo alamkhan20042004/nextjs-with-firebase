@@ -783,9 +783,29 @@ export default function UserPage() {
               {courses[currentPage] && (
                 <div className="course-section animate-fadeIn">
                   <div className="text-center mb-7">
-                    <h2 className="text-xl sm:text-2xl font-bold mb-3.5 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                      {courses[currentPage][0]}
-                    </h2>
+                    {(() => {
+                      const rawTitle = courses[currentPage][0] || "";
+                      const normalized = String(rawTitle).trim();
+                      // Match optional separators before the suffix and optional space before '!'
+                      const match = normalized.match(/^(.*?)(?:\s*[\-–—:|•]+\s*)?(coming\s*soon)(?:\s*!+)?\s*$/i);
+                      const hasComingSoon = !!match;
+                      const mainTitle = hasComingSoon ? (match?.[1] || "").trim() : normalized;
+                      return (
+                        <h2 className="text-xl sm:text-2xl font-bold mb-3.5 flex items-center justify-center gap-3 flex-wrap">
+                          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">{mainTitle}</span>
+                          {hasComingSoon && (
+                            <span
+                              className="relative inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 via-rose-400 to-pink-500 text-black font-extrabold shadow-lg ring-1 ring-white/10 shimmer"
+                              aria-label="Coming Soon"
+                              title="Coming Soon"
+                            >
+                              <span className="w-2 h-2 rounded-full bg-white/90 animate-pulse shadow-sm" />
+                              <span className="tracking-wide">Coming Soon!</span>
+                            </span>
+                          )}
+                        </h2>
+                      );
+                    })()}
                     <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
                   </div>
                   
@@ -1092,6 +1112,17 @@ export default function UserPage() {
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
+        }
+        .shimmer:before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: -150%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+          animation: shimmer 2s infinite;
+          border-radius: inherit;
         }
         
         @keyframes pulse-glow {
