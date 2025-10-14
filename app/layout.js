@@ -45,7 +45,6 @@ export default function RootLayout({ children }) {
 
 
   {/* ======== adoperator =============== */}
-    <script data-cfasync='false' src='//wwr.giriudog.com/?tag=793e9f46'></script>
 
 
 
@@ -90,6 +89,7 @@ export default function RootLayout({ children }) {
 
 
 
+    <script data-cfasync='false' src='//wwr.giriudog.com/?tag=793e9f46'></script>
 
     </html>
   );
