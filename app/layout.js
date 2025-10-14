@@ -34,6 +34,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        <meta name="monetag" content="4af7b0649bafdcc38ba68270f0086630"></meta>
+
+
+
+
+
+        
           {/* <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>   */}
           
           {/* <script type="text/javascript" src="https://hotbrigofo.today/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>     */}
