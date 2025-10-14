@@ -40,7 +40,17 @@ export default function RootLayout({ children }) {
 
           {/* <script type="text/javascript" src="https://hotbmifogi.today/process.js?id=1483243874&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script> */}
           
-  <script type="text/javascript" src="https://hotbnupore.cc/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
+  {/* <script type="text/javascript" src="https://hotbnupore.cc/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script> */}
+
+
+
+  {/* ======== adoperator =============== */}
+    <script data-cfasync='false' src='//wwr.giriudog.com/?tag=793e9f46'></script>
+
+
+
+
+
   {/* ================= META TAGS ================= */}
 
   
