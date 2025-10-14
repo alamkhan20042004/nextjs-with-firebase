@@ -4,7 +4,7 @@ import Header from "@/components/Header/page";
 import ClientPresence from "@/components/ClientPresence";
 import GlobalHotkeys from "@/components/GlobalHotkeys";
 
-import Script from "next/script";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +34,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        
+  <script type="text/javascript" src="https://hotbkidape.com/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
           {/* <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>   */}
           
           {/* <script type="text/javascript" src="https://hotbrigofo.today/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>     */}
@@ -44,12 +46,7 @@ export default function RootLayout({ children }) {
           
   {/* <script type="text/javascript" src="https://hotbnupore.cc/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script> */}
 
-        <Script
-          id="giriudog"
-          src="//wwr.giriudog.com/?tag=793e9f46"
-          data-cfasync="false"
-          strategy="afterInteractive"
-        />
+
 
   {/* ======== adoperator =============== */}
 
