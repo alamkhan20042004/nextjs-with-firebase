@@ -34,8 +34,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        
-  <script type="text/javascript" src="https://hotbkidape.com/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
+        <meta name="cryptocoinsad" content="cryptocoinsad-81761" />
           {/* <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>   */}
           
           {/* <script type="text/javascript" src="https://hotbrigofo.today/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>     */}
