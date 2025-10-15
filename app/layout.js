@@ -1,9 +1,10 @@
+"use client";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header/page";
 import ClientPresence from "@/components/ClientPresence";
 import GlobalHotkeys from "@/components/GlobalHotkeys";
-
+import Script from "next/script";
 
 
 const geistSans = Geist({
@@ -83,6 +84,50 @@ export default function RootLayout({ children }) {
         {/* Main content wrapper */}
         <main className="min-h-screen w-full flex flex-col p-4" data-prefer-fullscreen>
           {children}
+
+
+
+
+
+
+
+
+
+
+ {/* ✅ Step 1: Inline ad config */}
+        <Script id="ad-options" strategy="afterInteractive">
+          {`
+            window.atOptions = {
+              'key' : 'ada79b70fb0f2085866b0aa4b36316f6',
+              'format' : 'iframe',
+              'height' : 90,
+              'width' : 728,
+              'params' : {}
+            };
+          `}
+        </Script>
+
+        {/* ✅ Step 2: Load ad script */}
+        <Script
+          src="https://www.highperformanceformat.com/ada79b70fb0f2085866b0aa4b36316f6/invoke.js"
+          strategy="afterInteractive"
+        />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         </main>
 
         {/* Optional: Footer */}
