@@ -37,41 +37,6 @@ export default function RootLayout({ children }) {
         
   <script type="text/javascript" src="https://hotblikawo.today/process.js?id=1505874255&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>
 
-  {/* kakak */}
-  {/* hahah */}
-        {/* <meta name="cryptocoinsad" content="cryptocoinsad-81761" /> */}
-          {/* <script type="text/javascript" src="https://hotbdufowu.cc/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>   */}
-          
-          {/* <script type="text/javascript" src="https://hotbrigofo.today/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>     */}
-
-
-
-          {/* <script type="text/javascript" src="https://hotbmifogi.today/process.js?id=1483243874&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script> */}
-          
-  {/* <script type="text/javascript" src="https://hotbnupore.cc/process.js?id=1498866775&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script> */}
-
-
-
-  {/* ======== adoperator =============== */}
-
-
-
-
-
-  {/* ================= META TAGS ================= */}
-
-  
-  
-  {/* <script type="text/javascript" src="https://hotbhaluca.com/process.js?id=1485407312&p1=sub1&p2=sub2&p3=sub3&p4=sub4" async> </script>  
-
-        <meta confirm="partners-house-189923"/> */}
-
-
-
-  {/* ========================================== */}
-
-
-
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
