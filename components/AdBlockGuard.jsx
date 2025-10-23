@@ -366,7 +366,7 @@ export default function AdBlockGuard({ children }) {
         {children}
         
         {/* Add admin enable button in the corner for easy access */}
-        {!detected && (
+        {/* {!detected && (
           <div className="fixed bottom-4 right-4 z-50">
             <button 
               onClick={enableAdminMode}
@@ -376,7 +376,7 @@ export default function AdBlockGuard({ children }) {
               🔧 Admin
             </button>
           </div>
-        )}
+        )} */}
       </div>
 
       {detected && (
