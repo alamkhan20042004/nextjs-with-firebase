@@ -503,6 +503,18 @@ export default function WatchPage() {
 
   const handleExit = () => {
     try {
+      // Prefer going back in history if user came from within the app (better UX)
+      const sameOriginReferrer = (() => {
+        try {
+          const r = document.referrer;
+          return r && new URL(r).origin === window.location.origin && /\/user(\?|$|\/#)/.test(new URL(r).pathname + new URL(r).search + new URL(r).hash);
+        } catch { return false; }
+      })();
+      if (sameOriginReferrer || (typeof window !== 'undefined' && window.history.length > 1)) {
+        try { sessionStorage.setItem('returnFromWatch', '1'); } catch {}
+        router.back();
+        return;
+      }
       const ctxRaw = localStorage.getItem('watchContext');
       if (ctxRaw) {
         const ctx = JSON.parse(ctxRaw);
@@ -515,12 +527,25 @@ export default function WatchPage() {
         if (course) qs.set('course', String(course));
         if (typeof part === 'number' && !Number.isNaN(part)) qs.set('part', String(part));
         const suffix = qs.toString() ? `?${qs.toString()}` : '';
+        try { sessionStorage.setItem('returnFromWatch', '1'); } catch {}
         router.push(`/user${suffix}`);
         return;
       }
     } catch {}
     router.push('/user');
   };
+
+  // Mark that we are leaving watch so the user page can restore context
+  useEffect(() => {
+    const mark = () => { try { sessionStorage.setItem('returnFromWatch', '1'); } catch {} };
+    window.addEventListener('pagehide', mark);
+    window.addEventListener('beforeunload', mark);
+    return () => {
+      mark();
+      window.removeEventListener('pagehide', mark);
+      window.removeEventListener('beforeunload', mark);
+    };
+  }, []);
 
   // Resolve Streamtape direct URL once identified
   useEffect(() => {

@@ -480,16 +480,24 @@ export default function UserPage() {
     }
   }, [courses.length, currentPage]);
 
-  // Auto-focus the course the user came from (via query or watchContext)
+  // Auto-focus the course the user returned from (only when explicitly returning from Watch)
   useEffect(() => {
     if (appliedReturnFocus) return;
     if (!courses || courses.length === 0) return;
+    let fromWatch = false;
+    try { fromWatch = sessionStorage.getItem('returnFromWatch') === '1'; } catch {}
+
+    // If there's an explicit course query, we honor it regardless (for shareable URL)
     let targetCourse = null;
+    let hasQueryCourse = false;
     try {
       const sp = new URLSearchParams(window.location.search);
-      targetCourse = sp.get('course');
+      const q = sp.get('course');
+      if (q) { targetCourse = q; hasQueryCourse = true; }
     } catch {}
-    if (!targetCourse) {
+
+    // Only fallback to watchContext when we know we're returning from Watch
+    if (!targetCourse && fromWatch) {
       try {
         const raw = localStorage.getItem('watchContext');
         if (raw) {
@@ -498,12 +506,14 @@ export default function UserPage() {
         }
       } catch {}
     }
+
     if (!targetCourse) return;
     const idx = courses.findIndex(([name]) => String(name).trim() === String(targetCourse).trim());
     if (idx >= 0) {
       if (idx !== currentPage) setCurrentPage(idx);
       setAppliedReturnFocus(true);
-      // Optional: clean query to avoid persisting state in URL
+      // Cleanup: clear the return flag and optional query param
+      try { sessionStorage.removeItem('returnFromWatch'); } catch {}
       try {
         const sp = new URLSearchParams(window.location.search);
         if (sp.get('course')) {
