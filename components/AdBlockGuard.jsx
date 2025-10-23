@@ -174,12 +174,12 @@ export default function AdBlockGuard({ children }) {
       else if (categories.image) detectedBlocker = "Image/Tracker Blocking (uBlock Origin, AdGuard)";
       else if (categories.dnr) detectedBlocker = "DNR/Network Request Blocking (uBlock Origin Lite, Brave Shields)";
 
-      // Require at least 3 independent categories to trigger overlay (less strict)
-      let result = positiveCategories >= 3;
+      // Require at least 4 independent categories to trigger overlay (even less strict)
+      let result = positiveCategories >= 4;
 
-      // If offline, still require at least 3 signals
+      // If offline, still require at least 4 signals
       if (!navigator.onLine) {
-        result = positiveCategories >= 3;
+        result = positiveCategories >= 4;
       }
 
       // (Removed old probe-specific detection logic; now handled by category-based logic above)
@@ -220,7 +220,7 @@ export default function AdBlockGuard({ children }) {
         dnr: resultsRecheck[12] || resultsRecheck[13] || resultsRecheck[14],
       };
       const positiveCategoriesRecheck = Object.values(categoriesRecheck).filter(Boolean).length;
-      if (!cancelled && (result || positiveCategoriesRecheck >= 3)) {
+      if (!cancelled && (result || positiveCategoriesRecheck >= 4)) {
         setDetected(true);
         setChecked(true);
         setBlockerName(detectedBlocker);
