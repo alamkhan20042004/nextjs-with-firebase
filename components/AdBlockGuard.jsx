@@ -220,7 +220,7 @@ export default function AdBlockGuard({ children }) {
         dnr: resultsRecheck[12] || resultsRecheck[13] || resultsRecheck[14],
       };
       const positiveCategoriesRecheck = Object.values(categoriesRecheck).filter(Boolean).length;
-      if (!cancelled && (result || positiveCategoriesRecheck >= 3)) {
+      if (!cancelled && (result || positiveCategoriesRecheck >= 1)) {
         setDetected(true);
         setChecked(true);
         setBlockerName(detectedBlocker);
