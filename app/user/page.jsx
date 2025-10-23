@@ -270,6 +270,7 @@ export default function UserPage() {
   const [expandedSections, setExpandedSections] = useState({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [clickedKey, setClickedKey] = useState(null);
+  const [appliedReturnFocus, setAppliedReturnFocus] = useState(false);
 
   // Location tracking
   useEffect(() => {
@@ -478,6 +479,41 @@ export default function UserPage() {
       setCurrentPage(Math.max(0, courses.length - 1));
     }
   }, [courses.length, currentPage]);
+
+  // Auto-focus the course the user came from (via query or watchContext)
+  useEffect(() => {
+    if (appliedReturnFocus) return;
+    if (!courses || courses.length === 0) return;
+    let targetCourse = null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      targetCourse = sp.get('course');
+    } catch {}
+    if (!targetCourse) {
+      try {
+        const raw = localStorage.getItem('watchContext');
+        if (raw) {
+          const ctx = JSON.parse(raw);
+          if (ctx && ctx.course) targetCourse = String(ctx.course);
+        }
+      } catch {}
+    }
+    if (!targetCourse) return;
+    const idx = courses.findIndex(([name]) => String(name).trim() === String(targetCourse).trim());
+    if (idx >= 0) {
+      if (idx !== currentPage) setCurrentPage(idx);
+      setAppliedReturnFocus(true);
+      // Optional: clean query to avoid persisting state in URL
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get('course')) {
+          sp.delete('course');
+          const newUrl = `${window.location.pathname}${sp.toString() ? '?' + sp.toString() : ''}`;
+          window.history.replaceState({}, '', newUrl);
+        }
+      } catch {}
+    }
+  }, [courses, currentPage, setCurrentPage, appliedReturnFocus]);
 
   const goToNextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, courses.length - 1));

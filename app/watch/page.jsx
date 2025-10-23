@@ -501,7 +501,26 @@ export default function WatchPage() {
   }, [toggleFullscreen]);
 
 
-  const handleExit = () => { router.push('/user'); };
+  const handleExit = () => {
+    try {
+      const ctxRaw = localStorage.getItem('watchContext');
+      if (ctxRaw) {
+        const ctx = JSON.parse(ctxRaw);
+        const course = ctx?.course;
+        // Prefer explicit partIndex, else infer from current item
+        const part = (ctx && typeof ctx.partIndex === 'number')
+          ? ctx.partIndex
+          : (ctx?.list?.[ctx?.currentIndex ?? 0]?.partIndex);
+        const qs = new URLSearchParams();
+        if (course) qs.set('course', String(course));
+        if (typeof part === 'number' && !Number.isNaN(part)) qs.set('part', String(part));
+        const suffix = qs.toString() ? `?${qs.toString()}` : '';
+        router.push(`/user${suffix}`);
+        return;
+      }
+    } catch {}
+    router.push('/user');
+  };
 
   // Resolve Streamtape direct URL once identified
   useEffect(() => {

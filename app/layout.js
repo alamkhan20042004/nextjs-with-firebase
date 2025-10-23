@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "@/components/Header/page";
 import ClientPresence from "@/components/ClientPresence";
 import GlobalHotkeys from "@/components/GlobalHotkeys";
+import AdBlockGuard from "@/components/AdBlockGuard";
 
 
 
@@ -45,24 +46,26 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
       >
-  {/* Presence beacon (client-only) */}
-  <ClientPresence />
-  {/* Global keyboard shortcuts (F for fullscreen) */}
-  <GlobalHotkeys />
-  {/* ================= HEADER ================= */}
-        <Header className="bg-black text-white shadow-md sticky top-0 z-50" />
-        {/* ========================================== */}
+        <AdBlockGuard>
+          {/* Presence beacon (client-only) */}
+          <ClientPresence />
+          {/* Global keyboard shortcuts (F for fullscreen) */}
+          <GlobalHotkeys />
+          {/* ================= HEADER ================= */}
+          <Header className="bg-black text-white shadow-md sticky top-0 z-50" />
+          {/* ========================================== */}
 
-        {/* Main content wrapper */}
-        <main className="min-h-screen w-full flex flex-col p-4" data-prefer-fullscreen>
-          {children}
+          {/* Main content wrapper */}
+          <main className="min-h-screen w-full flex flex-col p-4" data-prefer-fullscreen>
+            {children}
           
-        </main>
+          </main>
 
-        {/* Optional: Footer */}
-        <footer className="w-full bg-black text-white text-center py-4 mt-auto">
-          <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
-        </footer>
+          {/* Optional: Footer */}
+          <footer className="w-full bg-black text-white text-center py-4 mt-auto">
+            <p className="text-sm">&copy; 2025 BrainFuel. All rights reserved.</p>
+          </footer>
+        </AdBlockGuard>
       </body>
 
 
