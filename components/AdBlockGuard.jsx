@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 export default function AdBlockGuard({ children }) {
   const [detected, setDetected] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [blockerName, setBlockerName] = useState("");
 
   const message = useMemo(() => ({
     title: "AdBlock Detected 🚫",
@@ -129,21 +130,7 @@ export default function AdBlockGuard({ children }) {
       }
     };
 
-    const iframeProbe = (src, ms = 3000) => new Promise((resolve) => {
-      const frame = document.createElement("iframe");
-      frame.style.position = "absolute";
-      frame.style.width = "1px";
-      frame.style.height = "1px";
-      frame.style.left = "-9999px";
-      frame.style.top = "-9999px";
-      let settled = false;
-      const done = (val) => { if (!settled) { settled = true; resolve(val); if (frame.parentNode) frame.parentNode.removeChild(frame); } };
-      frame.onload = () => done(false); // loaded -> not blocked
-      // no onerror for iframe; rely on timeout as heuristic
-      frame.src = src + (src.includes("?") ? "&" : "?") + "_ab=" + Date.now();
-      document.body.appendChild(frame);
-      setTimeout(() => done(true), ms);
-    });
+    // Note: Avoid iframe probes to ad domains; many set X-Frame-Options which causes false positives.
 
     const detect = async () => {
       // Run probes in parallel to keep things fast
@@ -169,8 +156,6 @@ export default function AdBlockGuard({ children }) {
         fetchNoCorsProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"),
         fetchNoCorsProbe("https://securepubads.g.doubleclick.net/tag/js/gpt.js"),
         fetchNoCorsProbe("https://static.doubleclick.net/instream/ad_status.js"),
-        // iframe probe to ad domain (no onerror, use timeout)
-        iframeProbe("https://googleads.g.doubleclick.net/pagead/html/r20190131/zrt_lookup.html"),
       ]);
 
       const [
@@ -189,26 +174,31 @@ export default function AdBlockGuard({ children }) {
         noCorsAdsByGoogle,
         noCorsGpt,
         noCorsDoubleClick,
-        iframeDoubleClick,
       ] = results;
 
       const positives = results.filter(Boolean).length;
 
-      // Strong signals: any of the well-known remote ad scripts blocked
-      const strong = remoteAdsByGoogle || remoteGpt || remoteDoubleClickStatus || noCorsAdsByGoogle || noCorsGpt || noCorsDoubleClick || iframeDoubleClick;
+      // Identify which probe triggered detection
+      let detectedBlocker = "Unknown AdBlocker";
+      if (domBait) detectedBlocker = "Cosmetic/Element Hiding (AdGuard, uBlock Origin, Brave)";
+      else if (localAdsJs || localAdvertJs || localAdsByGoogleJs || localAdFrameJs) detectedBlocker = "Filename-based Blocking (AdGuard, uBlock Origin)";
+      else if (remoteAdsByGoogle || remoteGpt || remoteDoubleClickStatus) detectedBlocker = "Network Blocking (uBlock Origin, AdGuard, Brave Shields)";
+      else if (apiAdsProbe || apiAdserverProbe || apiAdvertProbe) detectedBlocker = "API Path Blocking (AdGuard, uBlock Origin)";
+      else if (imgDoubleClick) detectedBlocker = "Image/Tracker Blocking (uBlock Origin, AdGuard)";
+      else if (noCorsAdsByGoogle || noCorsGpt || noCorsDoubleClick) detectedBlocker = "DNR/Network Request Blocking (uBlock Origin Lite, Brave Shields)";
 
-      // Base decision: strong OR 3+ positives overall OR (DOM bait + any script/image/API block)
-      let result = strong || positives >= 3 || (domBait && (localAdsJs || localAdvertJs || localAdsByGoogleJs || localAdFrameJs || imgDoubleClick || apiAdsProbe || apiAdserverProbe || apiAdvertProbe));
+      // STRICT: If any signal is detected, show the overlay
+      let result = positives >= 1;
 
-      // If offline, avoid false positives by requiring DOM bait too
+      // If offline, still require at least one signal
       if (!navigator.onLine) {
-        const anyScriptBlocked = localAdsJs || localAdvertJs || localAdsByGoogleJs || localAdFrameJs || remoteAdsByGoogle || remoteGpt || remoteDoubleClickStatus;
-        result = domBait && anyScriptBlocked;
+        result = positives >= 1;
       }
 
       if (!cancelled) {
         setDetected(!!result);
         setChecked(true);
+        setBlockerName(result ? detectedBlocker : "");
       }
 
       // Recheck shortly after load in case extension initializes late
@@ -218,12 +208,29 @@ export default function AdBlockGuard({ children }) {
       if (!cancelled && (result || again)) {
         setDetected(true);
         setChecked(true);
+        setBlockerName(detectedBlocker);
       }
     };
 
     // Schedule once mounted
-    detect();
-    return () => { cancelled = true; };
+    let intervalId = null;
+    const runDetect = async () => {
+      await detect();
+      // If adblock detected, keep checking every 2s in case user disables it
+      if (!cancelled && detected) {
+        intervalId = setInterval(async () => {
+          await detect();
+          if (!detected) {
+            clearInterval(intervalId);
+          }
+        }, 2000);
+      }
+    };
+    runDetect();
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   return (
@@ -242,6 +249,9 @@ export default function AdBlockGuard({ children }) {
               {message.lines.map((l, i) => (
                 <p key={i}>{l}</p>
               ))}
+              {blockerName && (
+                <p className="mt-4 text-base font-semibold text-red-400">Detected: {blockerName}</p>
+              )}
             </div>
             <div className="mt-6 flex items-center justify-center gap-3">
               <button
