@@ -133,82 +133,101 @@ export default function AdBlockGuard({ children }) {
     // Note: Avoid iframe probes to ad domains; many set X-Frame-Options which causes false positives.
 
     const detect = async () => {
-      // Run probes in parallel to keep things fast
+      // Run probes in parallel
       const results = await Promise.all([
-        // DOM bait
-        checkDomBait(),
-        // Local script baits (commonly blocklisted names)
-        loadScriptProbe("/ads.js"),
+        checkDomBait(), // Cosmetic/element hiding
+        loadScriptProbe("/ads.js"), // Local filename
         loadScriptProbe("/advert.js"),
         loadScriptProbe("/adsbygoogle.js"),
         loadScriptProbe("/adframe.js"),
-        // Remote ads scripts (very strong indicators)
-        loadScriptProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"),
+        loadScriptProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"), // Remote network
         loadScriptProbe("https://securepubads.g.doubleclick.net/tag/js/gpt.js"),
         loadScriptProbe("https://static.doubleclick.net/instream/ad_status.js"),
-        // API probes
-        fetchProbe("/api/ads-probe"),
+        fetchProbe("/api/ads-probe"), // API path
         fetchProbe("/api/adserver"),
         fetchProbe("/api/advert"),
-        // Image probe against an ad domain
-        imageProbe("https://securepubads.g.doubleclick.net/pcs/view"),
-        // no-cors fetch probes to ad domains (uBlock Origin Lite is DNR-based)
-        fetchNoCorsProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"),
+        imageProbe("https://securepubads.g.doubleclick.net/pcs/view"), // Image/tracker
+        fetchNoCorsProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"), // DNR/no-cors
         fetchNoCorsProbe("https://securepubads.g.doubleclick.net/tag/js/gpt.js"),
         fetchNoCorsProbe("https://static.doubleclick.net/instream/ad_status.js"),
       ]);
 
-      const [
-        domBait,
-        localAdsJs,
-        localAdvertJs,
-        localAdsByGoogleJs,
-        localAdFrameJs,
-        remoteAdsByGoogle,
-        remoteGpt,
-        remoteDoubleClickStatus,
-        apiAdsProbe,
-        apiAdserverProbe,
-        apiAdvertProbe,
-        imgDoubleClick,
-        noCorsAdsByGoogle,
-        noCorsGpt,
-        noCorsDoubleClick,
-      ] = results;
+      // Group probes by category
+      const categories = {
+        cosmetic: results[0],
+        local: results[1] || results[2] || results[3] || results[4],
+        remote: results[5] || results[6] || results[7],
+        api: results[8] || results[9] || results[10],
+        image: results[11],
+        dnr: results[12] || results[13] || results[14],
+      };
 
-      const positives = results.filter(Boolean).length;
+      // Count how many categories are positive
+      const positiveCategories = Object.values(categories).filter(Boolean).length;
 
       // Identify which probe triggered detection
       let detectedBlocker = "Unknown AdBlocker";
-      if (domBait) detectedBlocker = "Cosmetic/Element Hiding (AdGuard, uBlock Origin, Brave)";
-      else if (localAdsJs || localAdvertJs || localAdsByGoogleJs || localAdFrameJs) detectedBlocker = "Filename-based Blocking (AdGuard, uBlock Origin)";
-      else if (remoteAdsByGoogle || remoteGpt || remoteDoubleClickStatus) detectedBlocker = "Network Blocking (uBlock Origin, AdGuard, Brave Shields)";
-      else if (apiAdsProbe || apiAdserverProbe || apiAdvertProbe) detectedBlocker = "API Path Blocking (AdGuard, uBlock Origin)";
-      else if (imgDoubleClick) detectedBlocker = "Image/Tracker Blocking (uBlock Origin, AdGuard)";
-      else if (noCorsAdsByGoogle || noCorsGpt || noCorsDoubleClick) detectedBlocker = "DNR/Network Request Blocking (uBlock Origin Lite, Brave Shields)";
+      if (categories.cosmetic) detectedBlocker = "Cosmetic/Element Hiding (AdGuard, uBlock Origin, Brave)";
+      else if (categories.local) detectedBlocker = "Filename-based Blocking (AdGuard, uBlock Origin)";
+      else if (categories.remote) detectedBlocker = "Network Blocking (uBlock Origin, AdGuard, Brave Shields)";
+      else if (categories.api) detectedBlocker = "API Path Blocking (AdGuard, uBlock Origin)";
+      else if (categories.image) detectedBlocker = "Image/Tracker Blocking (uBlock Origin, AdGuard)";
+      else if (categories.dnr) detectedBlocker = "DNR/Network Request Blocking (uBlock Origin Lite, Brave Shields)";
 
-      // STRICT: If any signal is detected, show the overlay
-      let result = positives >= 1;
+      // Require at least 2 independent categories to trigger overlay
+      let result = positiveCategories >= 2;
 
-      // If offline, still require at least one signal
+      // If offline, still require at least 2 signals
       if (!navigator.onLine) {
-        result = positives >= 1;
+        result = positiveCategories >= 2;
       }
 
+      // (Removed old probe-specific detection logic; now handled by category-based logic above)
+
       if (!cancelled) {
-        setDetected(!!result);
-        setChecked(true);
-        setBlockerName(result ? detectedBlocker : "");
+  setDetected(!!result);
+  setChecked(true);
+  setBlockerName(result ? detectedBlocker : "");
       }
 
       // Recheck shortly after load in case extension initializes late
       await timeout(1500);
       if (cancelled) return;
-      const again = await checkDomBait();
-      if (!cancelled && (result || again)) {
+      // Recheck all categories, not just DOM bait
+      const resultsRecheck = await Promise.all([
+        checkDomBait(),
+        loadScriptProbe("/ads.js"),
+        loadScriptProbe("/advert.js"),
+        loadScriptProbe("/adsbygoogle.js"),
+        loadScriptProbe("/adframe.js"),
+        loadScriptProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"),
+        loadScriptProbe("https://securepubads.g.doubleclick.net/tag/js/gpt.js"),
+        loadScriptProbe("https://static.doubleclick.net/instream/ad_status.js"),
+        fetchProbe("/api/ads-probe"),
+        fetchProbe("/api/adserver"),
+        fetchProbe("/api/advert"),
+        imageProbe("https://securepubads.g.doubleclick.net/pcs/view"),
+        fetchNoCorsProbe("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"),
+        fetchNoCorsProbe("https://securepubads.g.doubleclick.net/tag/js/gpt.js"),
+        fetchNoCorsProbe("https://static.doubleclick.net/instream/ad_status.js"),
+      ]);
+      const categoriesRecheck = {
+        cosmetic: resultsRecheck[0],
+        local: resultsRecheck[1] || resultsRecheck[2] || resultsRecheck[3] || resultsRecheck[4],
+        remote: resultsRecheck[5] || resultsRecheck[6] || resultsRecheck[7],
+        api: resultsRecheck[8] || resultsRecheck[9] || resultsRecheck[10],
+        image: resultsRecheck[11],
+        dnr: resultsRecheck[12] || resultsRecheck[13] || resultsRecheck[14],
+      };
+      const positiveCategoriesRecheck = Object.values(categoriesRecheck).filter(Boolean).length;
+      if (!cancelled && (result || positiveCategoriesRecheck >= 2)) {
         setDetected(true);
         setChecked(true);
         setBlockerName(detectedBlocker);
+      } else if (!cancelled) {
+        setDetected(false);
+        setChecked(true);
+        setBlockerName("");
       }
     };
 
@@ -216,15 +235,10 @@ export default function AdBlockGuard({ children }) {
     let intervalId = null;
     const runDetect = async () => {
       await detect();
-      // If adblock detected, keep checking every 2s in case user disables it
-      if (!cancelled && detected) {
-        intervalId = setInterval(async () => {
-          await detect();
-          if (!detected) {
-            clearInterval(intervalId);
-          }
-        }, 2000);
-      }
+      // Always keep checking every 2s to update overlay dynamically
+      intervalId = setInterval(async () => {
+        await detect();
+      }, 2000);
     };
     runDetect();
     return () => {
