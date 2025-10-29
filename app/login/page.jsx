@@ -370,7 +370,7 @@ export default function LoginPage() {
                     🎯 Smart Video Experience
                   </p> */}
                   <h1 className="text-sm font-bold text-gray-700 leading-relaxed font-medium animate-text-flow">
-                    When you watch videos in full-screen mode, ads will <span className="font-bold text-green-600 animate-pulse-slow">automatically stop</span>
+                    When you watch videos in full-screen mode, ads will <span className="font-black text-green-600 animate-pulse-slow">Automatically Stop</span>
                   </h1>
                   
                   {/* Progress bar animation */}
